@@ -1,0 +1,8 @@
+# Dependencias que so o desenvolvedor precisa (rodar teste, ler .env).
+# Nao vao para dentro da imagem que sobe em producao.
+
+-r requirements.txt
+
+pytest==8.4.2
+pytest-cov==6.2.1
+python-dotenv==1.0.1

@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "amount_cents": {"type": "integer", "maximum": 9223372036854775807}
+  },
+  "required": ["amount_cents"],
+  "additionalProperties": false
+}
