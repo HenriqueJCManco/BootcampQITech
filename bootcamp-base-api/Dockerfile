@@ -24,3 +24,10 @@ USER user
 # informacao de menos pra quem procura uma versao com falha conhecida.
 CMD uvicorn app:app --host 0.0.0.0 --port 3000 --no-server-header
 
+FROM base AS test
+COPY requirements-dev.txt /requirements-dev.txt
+RUN pip install -r /requirements-dev.txt
+WORKDIR /app
+CMD ["pytest", "tests/", "-v"]
+
+

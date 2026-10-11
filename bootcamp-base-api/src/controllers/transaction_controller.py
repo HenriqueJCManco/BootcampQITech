@@ -163,7 +163,6 @@ class TransactionController(BaseController):
         )
         if not is_new:
             return self._replay(transaction), True
-
         blocked_mccs = {blocked.mcc.strip() for blocked in account.blocked_mccs}
         if payload["mcc"] in blocked_mccs or merchant_mcc in blocked_mccs:
             raise BlockedByVault()
