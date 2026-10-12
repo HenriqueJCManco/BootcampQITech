@@ -18,11 +18,6 @@ logger = get_logger(__name__)
 
 
 def qi_exception_to_response(exception: QIException) -> JSONResponse:
-    """Traduz um erro nosso para a resposta JSON que o cliente recebe.
-
-    Este é o único lugar do projeto que sabe como um erro vira HTTP.
-    Trocar de framework significa reescrever esta função — e mais nada.
-    """
     body = {
         "title": exception.title,
         "description": exception.description,
@@ -53,8 +48,6 @@ def validation_details(error: dict) -> list[dict]:
 
 
 def register_error_handlers(application: FastAPI) -> None:
-    """Ensina a aplicação a responder cada tipo de erro."""
-
     @application.exception_handler(QIException)
     def handle_qi_exception(request: Request, exception: QIException) -> JSONResponse:
         return qi_exception_to_response(exception)

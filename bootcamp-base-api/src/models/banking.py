@@ -123,6 +123,7 @@ class LedgerEntry(Base):
             text("entry_datetime DESC"),
             text("id DESC"),
         ),
+        Index("ix_ledger_entry_transaction_id", "transaction_id"),
     )
 
     id = Column(BigInteger, primary_key=True)

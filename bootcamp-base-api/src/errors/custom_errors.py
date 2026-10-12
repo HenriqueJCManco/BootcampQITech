@@ -30,7 +30,7 @@ class IdempotencyConflict(QIException):
 
 
 class DuplicateCustomer(QIException):
-    code = "BNK001002"
+    code = "BNK001001"
 
     def __init__(self) -> None:
         super().__init__(
@@ -43,7 +43,7 @@ class DuplicateCustomer(QIException):
 
 
 class InvalidCustomerDocument(QIException):
-    code = "BNK001003"
+    code = "BNK001002"
 
     def __init__(self) -> None:
         super().__init__(
@@ -57,7 +57,7 @@ class InvalidCustomerDocument(QIException):
 
 
 class NotFoundCustomer(QIException):
-    code = "BNK001004"
+    code = "BNK001003"
 
     def __init__(self) -> None:
         super().__init__("Customer not found", self.code, 404, "The customer was not found.", "Cliente não encontrado.")

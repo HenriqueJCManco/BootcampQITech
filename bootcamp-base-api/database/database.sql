@@ -81,6 +81,8 @@ CREATE TABLE ledger_entry (
 );
 CREATE INDEX ix_ledger_account_statement
     ON ledger_entry (account_id, entry_datetime DESC, id DESC);
+CREATE INDEX ix_ledger_entry_transaction_id
+    ON ledger_entry (transaction_id);
 
 CREATE TABLE notification_outbox (
     id BIGSERIAL PRIMARY KEY,
