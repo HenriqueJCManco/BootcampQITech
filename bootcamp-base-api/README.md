@@ -56,27 +56,27 @@ A plataforma sustenta seis garantias inegociáveis formalizadas na RFC:
 
 ```mermaid
 flowchart LR
-    subgraph Clientes["Clientes & Gateway"]
+    subgraph Clientes["Clientes e Gateway"]
         App["Aplicativo / Web"]
-        GW["gateway-api<br/>(Rate Limit, Auth, Timeout)"]
+        GW["gateway-api<br/>Rate Limit, Auth, Timeout"]
     end
 
-    subgraph Core["Core Bancário (transaction-api)"]
-        API["FastAPI Engine<br/>(Validação, Idempotência, Trava)"]
+    subgraph Core["Core Bancario - transaction-api"]
+        API["FastAPI Engine<br/>Validacao, Idempotencia, Trava"]
     end
 
-    subgraph Armazenamento["Persistência PostgreSQL"]
-        DB[("PostgreSQL 16<br/>8 Tabelas Relacionais<br/>Constraints & Índices")]
+    subgraph Armazenamento["Persistencia PostgreSQL"]
+        DB[("PostgreSQL 16<br/>8 Tabelas Relacionais<br/>Constraints e Indices")]
     end
 
-    subgraph Assincrono["Notificações"]
-        OutboxWorker["outbox-worker<br/>(Leitura SKIP LOCKED)"]
-        Canal["SMS / E-mail<br/>(Contatos de Confiança)"]
+    subgraph Assincrono["Notificacoes"]
+        OutboxWorker["outbox-worker<br/>Leitura SKIP LOCKED"]
+        Canal["SMS ou E-mail<br/>Contatos de Confianca"]
     end
 
     App -->|HTTP REST| GW
     GW -->|INTERNAL-TOKEN| API
-    API -->|Transação Atômica| DB
+    API -->|Transacao Atomica| DB
     DB -.->|Outbox PENDING| OutboxWorker
     OutboxWorker --> Canal
 ```
@@ -87,18 +87,18 @@ Todo movimento de dinheiro atravessa um funil rigoroso em 7 etapas que filtra re
 
 ```mermaid
 flowchart TD
-    A["1. Validação Rápida<br/>(Cabeçalhos, JSON Schema e Tipos)"] -->|Inválido: 400| E1[BNK000001]
-    A --> B["2. Busca de Contas sem Trava<br/>(Existência e limite por transferência)"]
-    B -->|Inexistente: 404 / Limite: 422| E2[BNK002001 / BNK004003]
-    B --> C["3. Reserva de Idempotência<br/>(INSERT ... ON CONFLICT DO NOTHING)"]
-    C -->|Replay com mesmo hash: 200| OK1[Retorna saldo original]
-    C -->|Mesma chave, outro corpo: 409| E3[BNK000012]
-    C --> D["4. Cofre Antivícios<br/>(Verifica MCC do pedido e CNPJ do lojista)"]
-    D -->|Bloqueado: 422 (Rollback libera chave)| E4[BNK004004]
-    D --> E["5. Trava Ordenada de Linhas<br/>(SELECT ... ORDER BY id FOR UPDATE)"]
-    E --> F["6. Conferência Atômica de Saldo<br/>(Saldo >= Valor + Tarifa)"]
-    F -->|Insuficiente: 409| E5[BNK004001]
-    F --> G["7. Gravação de Lançamentos e Outbox<br/>(Ledger imutável, saldo e evento PENDING)"]
+    A["1. Validacao Rapida<br/>Cabecalhos, JSON Schema e Tipos"] -->|Invalido: 400| E1["BNK000001"]
+    A --> B["2. Busca de Contas sem Trava<br/>Existencia e limite de transferencia"]
+    B -->|Inexistente: 404 ou Limite: 422| E2["BNK002001 / BNK004003"]
+    B --> C["3. Reserva de Idempotencia<br/>INSERT ON CONFLICT DO NOTHING"]
+    C -->|Replay com mesmo hash: 200| OK1["Retorna saldo original"]
+    C -->|Mesma chave, outro corpo: 409| E3["BNK000012"]
+    C --> D["4. Cofre Antivicios<br/>Verifica MCC do pedido e CNPJ do lojista"]
+    D -->|Bloqueado: 422 - Rollback libera chave| E4["BNK004004"]
+    D --> E["5. Trava Ordenada de Linhas<br/>SELECT ORDER BY id FOR UPDATE"]
+    E --> F["6. Conferencia Atomica de Saldo<br/>Saldo maior ou igual a Valor mais Tarifa"]
+    F -->|Insuficiente: 409| E5["BNK004001"]
+    F --> G["7. Gravacao de Lancamentos e Outbox<br/>Ledger imutavel, saldo e evento PENDING"]
     G --> H["COMMIT e Resposta 201 Created"]
 ```
 
@@ -115,19 +115,19 @@ O banco de dados é composto por **8 tabelas relacionais**, normalizadas e prote
 
 ```mermaid
 erDiagram
-    customer ||--o| account : "possui (1:1)"
-    account ||--o{ blocked_mcc : "bloqueia (0:N)"
-    account ||--o{ trusted_contact : "avisa (máx 2)"
-    account ||--o{ bank_transaction : "origem/destino"
-    account ||--o{ ledger_entry : "registra extrato"
-    bank_transaction ||--|{ ledger_entry : "gera lançamentos"
-    bank_transaction ||--o{ notification_outbox : "dispara avisos"
-    merchant }|..o{ bank_transaction : "cruza MCC por CNPJ"
+    customer ||--o| account : possui
+    account ||--o{ blocked_mcc : bloqueia
+    account ||--o{ trusted_contact : avisa
+    account ||--o{ bank_transaction : movimenta
+    account ||--o{ ledger_entry : registra
+    bank_transaction ||--|{ ledger_entry : gera
+    bank_transaction ||--o{ notification_outbox : dispara
+    merchant }|..o{ bank_transaction : valida
 
     customer {
         bigserial id PK
         uuid customer_key UK
-        varchar document_number UK "CPF ou CNPJ com máscara"
+        varchar document_number UK
         varchar email UK
         varchar name
         timestamptz created_at
@@ -136,23 +136,23 @@ erDiagram
     account {
         bigserial id PK
         uuid account_key UK
-        bigint customer_id FK,UK
-        bigint balance_cents "CHECK >= 0"
-        bigint transfer_limit_cents "CHECK >= 1 (default 100000)"
+        bigint customer_id FK
+        bigint balance_cents
+        bigint transfer_limit_cents
         timestamptz created_at
     }
 
     merchant {
         bigserial id PK
-        varchar document_number UK "CNPJ do lojista"
+        varchar document_number UK
         varchar name
-        char mcc "4 dígitos (ex: 7995)"
+        char mcc
     }
 
     blocked_mcc {
         bigserial id PK
         bigint account_id FK
-        char mcc "4 dígitos"
+        char mcc
         timestamptz created_at
     }
 
@@ -161,8 +161,8 @@ erDiagram
         uuid contact_key UK
         bigint account_id FK
         varchar name
-        varchar channel "SMS ou EMAIL"
-        varchar address "UK com account_id"
+        varchar channel
+        varchar address
         timestamptz created_at
     }
 
@@ -170,10 +170,10 @@ erDiagram
         bigserial id PK
         uuid transaction_key UK
         varchar idempotency_key UK
-        char request_hash "SHA-256 de rota e corpo"
-        varchar type "DEPOSIT, PURCHASE, TRANSFER"
-        bigint amount_cents "CHECK >= 1"
-        bigint fee_cents "CHECK >= 0 (100 na transferência)"
+        char request_hash
+        varchar type
+        bigint amount_cents
+        bigint fee_cents
         timestamptz created_at
     }
 
@@ -182,10 +182,10 @@ erDiagram
         uuid entry_key UK
         bigint account_id FK
         bigint transaction_id FK
-        varchar direction "CREDIT ou DEBIT"
-        varchar kind "DEPOSIT, PURCHASE, TRANSFER, FEE"
-        bigint amount_cents "CHECK >= 1"
-        bigint balance_after_cents "CHECK >= 0"
+        varchar direction
+        varchar kind
+        bigint amount_cents
+        bigint balance_after_cents
         timestamptz entry_datetime
     }
 
@@ -193,7 +193,7 @@ erDiagram
         bigserial id PK
         bigint transaction_id FK
         bigint contact_id FK
-        varchar status "PENDING ou SENT"
+        varchar status
         timestamptz created_at
         timestamptz sent_at
     }
