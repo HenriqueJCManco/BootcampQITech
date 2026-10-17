@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "from_account_key": {"type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},
+    "to_account_key": {"type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},
+    "amount_cents": {"type": "integer", "maximum": 9223372036854775807}
+  },
+  "required": ["from_account_key", "to_account_key", "amount_cents"],
+  "additionalProperties": false
+}

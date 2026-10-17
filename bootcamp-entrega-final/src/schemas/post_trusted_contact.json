@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {"type": "string", "minLength": 1, "maxLength": 255},
+    "channel": {"type": "string", "enum": ["SMS", "EMAIL"]},
+    "address": {"type": "string", "minLength": 1, "maxLength": 255}
+  },
+  "required": ["name", "channel", "address"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"channel": {"const": "EMAIL"}}},
+      "then": {"properties": {"address": {"pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"}}}
+    },
+    {
+      "if": {"properties": {"channel": {"const": "SMS"}}},
+      "then": {"properties": {"address": {"pattern": "^[0-9+() .-]{8,30}$"}}}
+    }
+  ]
+}
