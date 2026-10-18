@@ -84,6 +84,7 @@ class TrustedContact(Base):
     channel = Column(String(10), nullable=False)
     address = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    approval_consent_at = Column(DateTime(timezone=True))
 
     account = relationship("Account", back_populates="trusted_contacts")
 
@@ -94,6 +95,8 @@ class BankTransaction(Base):
         CheckConstraint("type IN ('DEPOSIT', 'PURCHASE', 'TRANSFER')", name="chk_bank_transaction_type"),
         CheckConstraint("amount_cents >= 1", name="chk_bank_transaction_amount"),
         CheckConstraint("fee_cents >= 0", name="chk_bank_transaction_fee"),
+        Index("ix_bank_transaction_pair", "from_account_id", "to_account_id", text("created_at DESC")),
+        Index("ix_bank_transaction_destination", "to_account_id", text("created_at DESC")),
     )
 
     id = Column(BigInteger, primary_key=True)
@@ -144,17 +147,30 @@ class NotificationOutbox(Base):
     __tablename__ = "notification_outbox"
     __table_args__ = (
         CheckConstraint("status IN ('PENDING', 'SENT')", name="chk_outbox_status"),
+        CheckConstraint(
+            "(transaction_id IS NOT NULL AND analysis_id IS NULL) "
+            "OR (transaction_id IS NULL AND analysis_id IS NOT NULL)",
+            name="chk_outbox_origin",
+        ),
         UniqueConstraint("transaction_id", "contact_id", name="uq_outbox_transaction_contact"),
+        UniqueConstraint("analysis_id", "contact_id", name="uq_outbox_analysis_contact"),
         Index(
             "ix_notification_outbox_pending",
             "created_at",
             "id",
             postgresql_where=text("status = 'PENDING'"),
         ),
+        Index(
+            "idx_outbox_blocked_pix",
+            "analysis_id",
+            text("created_at DESC"),
+            postgresql_where=text("transaction_id IS NULL"),
+        ),
     )
 
     id = Column(BigInteger, primary_key=True)
-    transaction_id = Column(BigInteger, ForeignKey("bank_transaction.id"), nullable=False)
+    transaction_id = Column(BigInteger, ForeignKey("bank_transaction.id"))
+    analysis_id = Column(BigInteger, ForeignKey("fraude.pix_analysis.id"))
     contact_id = Column(BigInteger, ForeignKey("trusted_contact.id"), nullable=False)
     status = Column(String(20), nullable=False, server_default="PENDING")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

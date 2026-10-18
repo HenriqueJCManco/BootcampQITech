@@ -1,1 +1,2 @@
 from repositories.bank_repository import BankRepository
+from repositories.fraud_repository import FraudRepository

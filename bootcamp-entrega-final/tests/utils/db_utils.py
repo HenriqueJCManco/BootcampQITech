@@ -6,6 +6,7 @@ from sqlalchemy.exc import OperationalError
 
 
 RESET_QUERIES = [
+    "DROP SCHEMA IF EXISTS fraude CASCADE;",
     "DROP SCHEMA public CASCADE;",
     "CREATE SCHEMA public;",
     "GRANT ALL ON SCHEMA public TO CURRENT_USER;",

@@ -8,3 +8,14 @@ from models.banking import (
     NotificationOutbox,
     TrustedContact,
 )
+from models.fraud import (
+    DestinationFlagModel,
+    DestinationReputationModel,
+    DeviceSeenModel,
+    EngineConfigModel,
+    OfPayerProfileModel,
+    PixAnalysisModel,
+    PixFeedbackModel,
+    PixRuleResultModel,
+    PixShadowResultModel,
+)
