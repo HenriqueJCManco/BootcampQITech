@@ -157,7 +157,7 @@ CREATE TABLE fraude.pix_analysis (
     CONSTRAINT chk_pix_analysis_type CHECK (type IN ('payment', 'refund')),
     CONSTRAINT chk_pix_analysis_amount CHECK (amount_cents >= 1),
     CONSTRAINT chk_pix_analysis_channel
-        CHECK (channel IN ('internet', 'celular', 'computador', 'tablet', 'relogio')),
+        CHECK (channel IN ('internet', 'celular', 'computador', 'tablet')),
     CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL)),
     CONSTRAINT chk_pix_analysis_geo_accuracy CHECK (geo_accuracy_m IS NULL OR geo_accuracy_m >= 0)
 );
@@ -340,8 +340,7 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
         "histograma_horas_tolerancia": 0.05,
         "segmentos_canal": {
             "mobile": ["celular", "tablet"],
-            "desktop": ["internet", "computador"],
-            "relogio": ["relogio"]
+            "desktop": ["internet", "computador"]
         },
         "faixas": [
             {"faixa": "A", "ate_centavos": 20000, "dois_fatores": 45, "reprova": 85},
@@ -380,7 +379,6 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
             },
             "G4": {"canais": ["celular", "tablet"], "pontos": 5},
             "K1": {"janela_dias": 90, "min_transacoes": 5, "proporcao_max": 0.10, "pontos": 10},
-            "K2": {"canal": "relogio", "acima_centavos": 20000},
             "C1": {"pontos": 15},
             "C2": {
                 "faixas": [

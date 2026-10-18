@@ -43,7 +43,7 @@ END = (datetime.now(BRT) - timedelta(hours=2)).replace(second=0, microsecond=0)
 START = END - timedelta(days=160)
 FEE_CENTS = 100
 REGULAR_PAYERS = 90
-DEVICE_PREFIX = {"celular": "cel", "app": "cel", "tablet": "cel", "computador": "pc", "internet": "pc", "relogio": "rel"}
+DEVICE_PREFIX = {"celular": "cel", "app": "cel", "tablet": "cel", "computador": "pc", "internet": "pc"}
 
 FIRST_NAMES = [
     "Maria", "José", "Antônio", "Francisca", "Ana", "João", "Raimunda", "Sebastião", "Terezinha", "Benedito",
@@ -260,7 +260,7 @@ class Seeder:
         devices, profiles = [], []
         for customer in self.customers:
             source_hash = document_hash(customer["document"])
-            prefixes = ("cel", "pc", "rel") if customer["role"] == "payer" else ("cel",)
+            prefixes = ("cel", "pc") if customer["role"] == "payer" else ("cel",)
             for prefix in prefixes:
                 devices.append({
                     "device_id": f"{prefix}-{customer['index']}", "source_hash": source_hash,
@@ -365,10 +365,7 @@ class Seeder:
             if index >= 60:
                 continue
             moment = (END - timedelta(days=rng.randint(15, 100))).replace(hour=rng.randint(8, 18), minute=rng.randint(0, 59))
-            if index < 10:
-                amount = rng.randint(8_000, 20_000) if index < 5 else rng.randint(25_000, 60_000)
-                self.legit(payer, moment, amount, self.internal(relative), "legitimo_relogio", "relogio")
-            elif rng.random() < 0.5:
+            if rng.random() < 0.5:
                 self.legit(payer, moment, rng.randint(10_000, 50_000), self.internal(relative), "legitimo_familia")
             else:
                 self.legit(payer, moment, rng.randint(4_000, 25_000), bill_destination(), "legitimo_conta")

@@ -622,23 +622,6 @@ def test_k1_short_history_and_unknown_segment_and_r1_remote_access(engine_config
     assert channel.segment_of("canal_inexistente", engine_config) is None
 
 
-def test_k2_smartwatch_above_200_reais_sets_floor_with_zero_points(engine_config):
-    now = at(17, 14)
-    ctx = make_context(
-        now,
-        25000,
-        history=known_destination_history(now),
-        pix={"channel": "relogio", "geolocation": HOME},
-    )
-    decision = evaluate(ctx, engine_config)
-    k2 = hit_for(decision, "K2")
-
-    assert k2 is not None
-    assert k2.points == 0
-    assert "K2" in decision.floor_applied
-    assert decision.status == TWO_FACTOR_REQUIRED
-
-
 def test_x2_floor_applies_in_band_d_with_new_beneficiary(engine_config):
     now = at(17, 14)
     high_routine = routine_without_current_dest(now, amount_cents=600000)

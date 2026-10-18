@@ -105,7 +105,6 @@ def _score_hits(facts: Facts, destination_status: str, trusted: bool, trusted_ev
         scoring.g2_impossible_travel(facts),
         channel.g4_missing_geolocation(facts),
         channel.k1_unusual_channel(facts),
-        channel.k2_watch(facts),
         c1,
         scoring.c2_destination_age(facts),
         scoring.c5_many_payers(facts),

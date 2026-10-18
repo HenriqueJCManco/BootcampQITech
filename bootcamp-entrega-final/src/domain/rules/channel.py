@@ -43,13 +43,6 @@ def k1_unusual_channel(facts: Facts) -> RuleHit | None:
     return RuleHit("K1", params["pontos"], {"channel": channel, "segment": segment, "share": round(share, 3)})
 
 
-def k2_watch(facts: Facts) -> RuleHit | None:
-    params = facts.config.rule("K2")
-    if facts.pix.channel != params["canal"] or facts.pix.amount_cents <= params["acima_centavos"]:
-        return None
-    return RuleHit("K2", 0, {"channel": facts.pix.channel}, floor=True)
-
-
 def r1_remote_or_call(facts: Facts) -> RuleHit | None:
     params = facts.config.rule("R1")
     points = 0

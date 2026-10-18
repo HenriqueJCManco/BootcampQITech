@@ -6,8 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_16-336791.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.org/)
-[![Pytest](https://img.shields.io/badge/Tests-142%20Passed%20(100%25%20Domain%20Cov)-success.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
-[![SLA](https://img.shields.io/badge/Latency%20P50-38.4ms%20(SLA%20%3C%20300ms)-brightgreen.svg)](./docs/politica-resiliencia-sla-antifraude.md)
+[![Pytest](https://img.shields.io/badge/Tests-141%20Passed%20(100%25%20Domain%20Cov)-success.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 Antifraude de Pix para um banco de público 60+ (aposentados e pensionistas, renda estável, pouca fluência digital). A fricção só aparece onde há dúvida: aprovar é o padrão, 2FA é o meio-termo e reprovar exige risco claro.
@@ -20,15 +19,14 @@ Antifraude de Pix para um banco de público 60+ (aposentados e pensionistas, ren
 
 1. [Como o motor de decisão funciona](#como-o-motor-de-decisão-funciona)
 2. [Rotas e Contrato da API](#rotas-e-contrato-da-api)
-3. [Regras do Motor Antifraude (26 Regras)](#regras)
+3. [Regras do Motor Antifraude (25 Regras)](#regras)
 4. [Como as regras viram decisão e 2FA via QI Tech](#como-as-regras-viram-decisão)
 5. [Modelo de Dados e Valores Reais do Banco](#modelo-de-dados)
-6. [Tempo Gasto em Todo o Processo da API (Benchmark Real)](#tempo-gasto-em-todo-o-processo-da-api-do-motor-benchmark-real)
-7. [Como rodar, testar e Mapa dos 142 Testes](#como-rodar-e-testar)
-8. [Resultado do backtest](#resultado-do-backtest)
-9. [Códigos de erro (`AFP` e `BNK`)](#códigos-de-erro)
-10. [Estrutura do Projeto](#estrutura-do-projeto)
-11. [Premissas e fora do escopo](#premissas-e-fora-do-escopo)
+6. [Como rodar, testar e Mapa dos 141 Testes](#como-rodar-e-testar)
+7. [Resultado do backtest](#resultado-do-backtest)
+8. [Códigos de erro (`AFP` e `BNK`)](#códigos-de-erro)
+9. [Estrutura do Projeto](#estrutura-do-projeto)
+10. [Premissas e fora do escopo](#premissas-e-fora-do-escopo)
 
 ---
 
@@ -39,7 +37,7 @@ O **Motor Antifraude Pix Seguro 60+** avalia cada Pix **antes de o dinheiro sair
 * **Segundo Fator Obrigatório (`two_factor_required`):** a operação fica retida aguardando confirmação por código de segurança (enviado ao próprio idoso ou ao seu Contato de Confiança familiar);
 * **Reprovado (`rejected`):** a operação é bloqueada preventivamente e o saldo permanece intacto.
 
-Toda a análise ocorre em **uma única passagem rápida (~38 ms)**, consultando apenas dados locais já existentes no banco, sem depender de chamadas externas lentas durante a avaliação do risco.
+Toda a análise ocorre em **uma única passagem síncrona**, consultando apenas dados locais já existentes no banco, sem depender de chamadas externas lentas durante a avaliação do risco.
 
 ---
 
@@ -122,7 +120,7 @@ flowchart LR
 2. **Fila por pagador:** apenas transações da **mesma pessoa** aguardam em fila para impedir que duas transferências simultâneas burlem o limite diário; clientes diferentes são atendidos em paralelo.
 3. **Barreiras eliminatórias antes da pontuação:** regras regulatórias ou de proteção absoluta (como casas de apostas bloqueadas, contas denunciadas por fraude ou excesso noturno para desconhecidos) reprovam imediatamente.
 4. **Pontuação proporcional ao valor:** quanto maior o valor do Pix, menor a tolerância a sinais de risco. Além disso, sinais da mesma natureza têm um limite máximo para não punir duas vezes pelo mesmo motivo.
-5. ** Memória contínua:** ao final de cada análise, o motor atualiza automaticamente a reputação do recebedor e o histórico do aparelho.
+5. **Memória contínua:** ao final de cada análise, o motor atualiza automaticamente a reputação do recebedor e o histórico do aparelho.
 
 ---
 
@@ -145,7 +143,7 @@ flowchart LR
 
 * **Camada de Segurança e Entrada (`middlewares` + `resources`):** confere a credencial interna da requisição, valida se todos os campos enviados respeitam o formato esperado e formata a resposta final.
 * **Camada de Orquestração (`controllers`):** coordena o passo a passo — pede os dados ao banco, entrega tudo pronto para o cérebro antifraude decidir, salva o resultado e, quando necessário, aciona o envio de token na QI Tech.
-* **Cérebro de Decisão Antifraude (`domain`):** contém toda a inteligência das 26 regras, cálculo estatístico de hábito do idoso e classificação de risco. Não faz chamadas de rede nem consultas SQL, o que garante velocidade em milissegundos e 100% de cobertura em testes unitários.
+* **Cérebro de Decisão Antifraude (`domain`):** contém toda a inteligência das 25 regras, cálculo estatístico de hábito do idoso e classificação de risco. Não faz chamadas de rede nem consultas SQL, o que garante velocidade em milissegundos e 100% de cobertura em testes unitários.
 * **Camada de Dados (`repositories` + `models`):** único ponto que conversa com o PostgreSQL. Lê os dados cadastrais e de extrato do banco (sem nunca alterar saldo) e grava todas as evidências e decisões no ambiente antifraude.
 
 ### Garantias de Produto e Engenharia
@@ -188,7 +186,7 @@ flowchart LR
 
 Todas as rotas, menos `/` e `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN` (`default_token` no ambiente local). Ausente ou errado nas rotas `/pix/*`, a resposta é `403 AFP000002`, e a comparação é feita em tempo constante (`hmac.compare_digest`). **Reprovar um Pix não é erro**: a resposta é `201` com `status: rejected`.
 
-**Entrada.** Valores em centavos (inteiro ≥ 1) e `transaction_date` com fuso. Campos opcionais ausentes desligam a regra correspondente e entram em `metadata.inputs_missing`; a requisição não falha. `source.channel` aceita `internet`, `celular`, `computador`, `tablet` e `relogio`. O alias `app` é gravado como `celular`.
+**Entrada.** Valores em centavos (inteiro ≥ 1) e `transaction_date` com fuso. Campos opcionais ausentes desligam a regra correspondente e entram em `metadata.inputs_missing`; a requisição não falha. `source.channel` aceita `internet`, `celular`, `computador` e `tablet`. O alias `app` é gravado como `celular`.
 
 ```json
 {
@@ -277,8 +275,7 @@ Todas as rotas, menos `/` e `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN
 | **G1 Distância do usual** | Distância até a mediana dos locais dos últimos 90 dias (mín. 5 pontos) | > 100 km +15; > 500 km +25 | Conta tomada opera de outro lugar. A mediana resiste a uma viagem pontual |
 | **G2 Deslocamento impossível** | Velocidade desde o último Pix geolocalizado | ≥ 100 km e ≥ 800 km/h, ou ≥ 20 km e ≥ 300 km/h: +35 e piso de 2FA; ignora pontos com precisão pior que 5 km ou com mais de 6 h | 800 km/h é o limite generoso de voo comercial; o nível de 300 km/h pega deslocamentos curtos que nenhum carro faz |
 | **G4 Sem geolocalização** | Canal `celular` ou `tablet` sem `geolocation` | +5 | Muitos 60+ negam a permissão, por isso o peso é baixo |
-| **K1 Canal incomum** | Segmento do canal (mobile, desktop, relógio) usado em menos de 10% das transações em 90 dias (mín. 5) | +10 | Troca de canal acompanha tomada de conta |
-| **K2 Relógio** | Canal `relogio` acima de R$ 200 | piso de 2FA | A tela pequena não mostra o destinatário completo (hipótese) |
+| **K1 Canal incomum** | Segmento do canal (`mobile` vs `desktop`) usado em menos de 10% das transações em 90 dias (mín. 5) | +10 | Troca repentina de dispositivo móvel para computador/navegador acompanha tomada de conta |
 | **C1 Beneficiário novo** | Primeiro Pix concluído do par pagador–destino | +15 | Golpe de engenharia social sempre leva a um destino novo |
 | **C2 Idade do destino** | Idade da conta de destino | < 7 d +30; < 30 d +20; < 90 d +5 | Conta jovem sugere laranja, mas cerca de 60% das mulas têm mais de 1 ano: nunca decide sozinha |
 | **C5 Muitos pagadores** | Pagadores distintos para o destino em 24 h | ≥ 3 +15; ≥ 5 +25 | Mula recebe de várias vítimas |
@@ -342,7 +339,6 @@ A decisão segue uma ordem simples e previsível:
 
 **Situações que exigem Segundo Fator obrigatório (mesmo com pontuação baixa):**
 - Aparelho novo ou não reconhecido enviando acima de R$ 200,00;
-- Uso de relógio inteligente (*smartwatch*) acima de R$ 200,00 (tela reduzida dificulta conferir os dados do recebedor);
 - Transferência pequena de teste seguida de transferência alta para o mesmo recebedor em até 72 horas;
 - Ligação telefônica em andamento ou aplicativo de acesso remoto ativo durante o Pix;
 - Sinais de digitação robótica ou automação no computador/navegador;
@@ -691,26 +687,6 @@ Em cada chamada `POST /pix/transaction`, o [`FraudRepository`](./src/repositorie
 
 ---
 
-## Tempo Gasto em Todo o Processo da API do Motor (Benchmark Real)
-
-Medição obtida com [`scripts/benchmark_telemetry.py`](./scripts/benchmark_telemetry.py) sobre 30 transações sequenciais contra o PostgreSQL:
-
-| Etapa do Processo (`AvaliarPixController`) | Mínimo (ms) | Mediana / P50 (ms) | Média (ms) | P95 (ms) | Máximo (ms) | % do Tempo (P50) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1. Normalização, Validação e Hash SHA-256** (`_normalize`, `_validate`, `_request_hash`) | `0.094` | **`0.123`** | `0.134` | `0.183` | `0.315` | **0.4%** |
-| **2. Busca de Contas Origem/Destino** (`_find_account`) | `3.400` | **`3.971`** | `5.887` | `5.855` | `55.411` | **13.1%** |
-| **3. Reserva de Idempotência** (`reserve_analysis` — `INSERT ON CONFLICT`) | `2.118` | **`2.639`** | `2.948` | `3.855` | `10.176` | **8.7%** |
-| **4. Trava por Pagador** (`_lock_payer` — `pg_advisory_xact_lock` com timeout `2s`) | `0.776` | **`1.042`** | `1.219` | `1.883` | `2.021` | **3.4%** |
-| **5. Carregamento de Snapshots** (`load_payer_snapshot`, `load_destination_snapshot`, `load_device_snapshot`) | `7.826` | **`10.809`** | `11.077` | `13.601` | `23.491` | **35.6%** |
-| **6. Avaliação Pura do Motor de Regras** (`evaluate(context, config)` — 26 regras em memória) | `0.193` | **`0.271`** | `0.478` | `0.364` | `6.721` | **0.9%** |
-| **7. Persistência, Reputação, Outbox e Commit** (`persist_analysis` + `commit`) | `9.166` | **`11.297`** | `11.251` | `12.368` | `18.951` | **37.2%** |
-| **Total Interno do Controller** (`AvaliarPixController.avaliar`) | `26.093` | **`30.354`** | `33.001` | `33.217` | `116.758` | **100%** |
-| **HTTP End-to-End (`POST /pix/transaction` — Nova Análise)** | `35.179` | **`38.369`** | `40.017` | `42.967` | `85.709` | **SLA < 300 ms (Folga de 87%)** |
-| **Replay Idempotente (`200 OK` — Mesma chave e corpo)** | `6.174` | **`7.486`** | `7.749` | `10.115` | `10.660` | **SLA < 300 ms** |
-| **Replay de Confirmação 2FA (`second_factor_passed=True`)** | `6.094` | **`8.225`** | `8.769` | `12.363` | `16.125` | **SLA < 300 ms** |
-
----
-
 ## Como rodar e testar
 
 Sobe o banco e a API:
@@ -735,7 +711,7 @@ pip install -r requirements-dev.txt
 # Executa os 142 testes (104 unitários + 38 de integração) e verifica 100% de cobertura em src/domain
 pytest --cov=src/domain --cov-report=term-missing
 
-# Mede o tempo etapa por etapa da API do motor
+# Mede a velocidade de resposta da API e exibe as especificações da máquina de execução
 python scripts/benchmark_telemetry.py
 
 # Inspeciona as tabelas e linhas atuais do PostgreSQL
@@ -765,32 +741,32 @@ python scripts/backtest.py
 | [`tests/integration/banking/test_bank_api.py`](./tests/integration/banking/test_bank_api.py) + [`test_healthcheck.py`](./tests/integration/test_healthcheck.py) | `14` | PostgreSQL Real (`DbUtils.rollback()`) | Operações bancárias, Cofre Antivícios em compras, concorrência multi-thread de saldo/contatos e preservação de acentuação nos erros |
 | **Total** | **142** | **100% Passando** | **100% de cobertura em todos os módulos de regras e entidades de `src/domain/`** |
 
-### Quantidade de Requisições e Tempo Médio por Caminho (Rota) nos Testes
+### Quantidade de Requisições por Caminho (Rota) nos Testes
 
-Durante a execução dos **38 testes de integração** da suíte `pytest`, são realizadas **151 requisições HTTP** distribuídas por todas as rotas da API (além de **1.290 requisições HTTP** quando executada a geração da massa sintética em [`scripts/massa_sintetica.py`](./scripts/massa_sintetica.py)):
+Durante a execução dos **38 testes de integração** da suíte `pytest`, são realizadas **151 requisições HTTP** distribuídas por todas as rotas da API (além de **1.290 requisições HTTP** quando executada a geração da massa sintética em [`scripts/massa_sintetica.py`](./scripts/massa_sintetica.py)). Os dados de velocidade de resposta por etapa/rota e as características da máquina de execução estão documentados no código em [`scripts/benchmark_telemetry.py`](./scripts/benchmark_telemetry.py):
 
-| Caminho / Rota HTTP | Qtd. Requisições (`pytest`) | Qtd. Requisições (`massa_sintetica.py`) | Tempo Médio (ms) | Mediana P50 (ms) | Mínimo (ms) | Máximo (ms) | Status HTTP Retornados (`pytest`) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| `POST /pix/transaction` | `35` | `690` *(600 Pix + 90 replays 2FA)* | **`46,74 ms`** | `46,63 ms` | `14,11 ms` | `268,41 ms` | `201 (23x)`, `200 (4x)`, `400 (5x)`, `422 (2x)`, `409 (1x)` |
-| `POST /customer` | `19` | *(via seed SQL)* | **`14,07 ms`** | `14,10 ms` | `7,79 ms` | `20,08 ms` | `201 (18x)`, `400 (1x)` |
-| `POST /account` | `18` | *(via seed SQL)* | **`16,83 ms`** | `16,10 ms` | `14,39 ms` | `22,79 ms` | `201 (18x)` |
-| `PUT /pix/transaction/{id}/second_factor/token` | `13` | — | **`24,89 ms`** | `29,43 ms` | `4,73 ms` | `39,93 ms` | `200 (4x)`, `422 (7x)`, `400 (1x)`, `404 (1x)` |
-| `POST /pix/transaction/{id}/second_factor` | `12` | — | **`23,71 ms`** | `24,70 ms` | `14,02 ms` | `41,06 ms` | `201 (6x)`, `200 (1x)`, `422 (3x)`, `409 (1x)`, `503 (1x)` |
-| `POST /account/{account_key}/trusted_contact` | `11` | *(via seed SQL)* | **`25,74 ms`** | `20,86 ms` | `18,19 ms` | `44,98 ms` | `201 (9x)`, `409 (2x)` |
-| `POST /account/{account_key}/deposit` | `11` | *(via seed SQL)* | **`36,79 ms`** | `23,43 ms` | `6,55 ms` | `75,46 ms` | `201 (4x)`, `200 (5x)`, `400 (1x)`, `409 (1x)` |
-| `POST /transfer` *(inclui teste de corrida multi-thread)* | `10` | *(via seed SQL)* | **`122,95 ms`** | `131,18 ms` | `83,52 ms` | `153,05 ms` | `201 (5x)`, `409 (5x)` |
-| `GET /pix/transaction/{id}` | `4` | — | **`8,56 ms`** | `10,32 ms` | `4,28 ms` | `10,98 ms` | `200 (2x)`, `403 (1x)`, `404 (1x)` |
-| `PUT /sample` *(teste de autenticação/404)* | `4` | — | **`5,48 ms`** | `5,57 ms` | `4,23 ms` | `6,79 ms` | `403 (2x)`, `404 (2x)` |
-| `GET /account/{account_key}` | `3` | — | **`8,02 ms`** | `7,57 ms` | `7,46 ms` | `9,03 ms` | `200 (3x)` |
-| `GET /account/{account_key}/statement` | `2` | — | **`9,54 ms`** | `11,72 ms` | `7,36 ms` | `11,72 ms` | `200 (1x)`, `400 (1x)` |
-| `POST /account/{account_key}/purchase` | `2` | — | **`18,57 ms`** | `20,80 ms` | `16,34 ms` | `20,80 ms` | `201 (1x)`, `422 (1x)` |
-| `POST /pix/feedback` | `2` | `600` | **`13,61 ms`** | `17,69 ms` | `9,53 ms` | `17,69 ms` | `201 (1x)`, `404 (1x)` |
-| `PUT /account/{account_key}/blocked_mcc` | `1` | — | **`15,51 ms`** | `15,51 ms` | `15,51 ms` | `15,51 ms` | `200 (1x)` |
-| `PATCH /pix/transaction/{id}/second_factor/token` | `1` | — | **`37,28 ms`** | `37,28 ms` | `37,28 ms` | `37,28 ms` | `200 (1x)` |
-| `GET /` | `1` | — | **`6,21 ms`** | `6,21 ms` | `6,21 ms` | `6,21 ms` | `200 (1x)` |
-| `GET /health_check` | `1` | — | **`7,15 ms`** | `7,15 ms` | `7,15 ms` | `7,15 ms` | `200 (1x)` |
-| `PUT /health_check` *(teste de método 405)* | `1` | — | **`4,89 ms`** | `4,89 ms` | `4,89 ms` | `4,89 ms` | `405 (1x)` |
-| **Total Geral de Requisições HTTP** | **`151`** | **`1.290`** | **`33,42 ms`** *(média ponderada)* | — | **`4,23 ms`** | **`268,41 ms`** | **100% abaixo do SLA de 300 ms** |
+| Caminho / Rota HTTP | Qtd. Requisições (`pytest`) | Qtd. Requisições (`massa_sintetica.py`) | Status HTTP Retornados (`pytest`) |
+| :--- | :---: | :---: | :--- |
+| `POST /pix/transaction` | `35` | `690` *(600 Pix + 90 replays 2FA)* | `201 (23x)`, `200 (4x)`, `400 (5x)`, `422 (2x)`, `409 (1x)` |
+| `POST /customer` | `19` | *(via seed SQL)* | `201 (18x)`, `400 (1x)` |
+| `POST /account` | `18` | *(via seed SQL)* | `201 (18x)` |
+| `PUT /pix/transaction/{id}/second_factor/token` | `13` | — | `200 (4x)`, `422 (7x)`, `400 (1x)`, `404 (1x)` |
+| `POST /pix/transaction/{id}/second_factor` | `12` | — | `201 (6x)`, `200 (1x)`, `422 (3x)`, `409 (1x)`, `503 (1x)` |
+| `POST /account/{account_key}/trusted_contact` | `11` | *(via seed SQL)* | `201 (9x)`, `409 (2x)` |
+| `POST /account/{account_key}/deposit` | `11` | *(via seed SQL)* | `201 (4x)`, `200 (5x)`, `400 (1x)`, `409 (1x)` |
+| `POST /transfer` *(inclui teste de corrida multi-thread)* | `10` | *(via seed SQL)* | `201 (5x)`, `409 (5x)` |
+| `GET /pix/transaction/{id}` | `4` | — | `200 (2x)`, `403 (1x)`, `404 (1x)` |
+| `PUT /sample` *(teste de autenticação/404)* | `4` | — | `403 (2x)`, `404 (2x)` |
+| `GET /account/{account_key}` | `3` | — | `200 (3x)` |
+| `GET /account/{account_key}/statement` | `2` | — | `200 (1x)`, `400 (1x)` |
+| `POST /account/{account_key}/purchase` | `2` | — | `201 (1x)`, `422 (1x)` |
+| `POST /pix/feedback` | `2` | `600` | `201 (1x)`, `404 (1x)` |
+| `PUT /account/{account_key}/blocked_mcc` | `1` | — | `200 (1x)` |
+| `PATCH /pix/transaction/{id}/second_factor/token` | `1` | — | `200 (1x)` |
+| `GET /` | `1` | — | `200 (1x)` |
+| `GET /health_check` | `1` | — | `200 (1x)` |
+| `PUT /health_check` *(teste de método 405)* | `1` | — | `405 (1x)` |
+| **Total Geral de Requisições HTTP** | **`151`** | **`1.290`** | **Todas as 16 rotas exercitadas** |
 
 ### Quantidade de Dados Alimentados no Banco de Dados por Tabela nos Testes
 
