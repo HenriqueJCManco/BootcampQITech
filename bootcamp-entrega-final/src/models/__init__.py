@@ -26,6 +26,8 @@ from models.fraud import (
     PixFeedbackModel,
     PixRuleResult,
     PixRuleResultModel,
+    PixSecondFactor,
+    PixSecondFactorModel,
     PixShadowResult,
     PixShadowResultModel,
 )

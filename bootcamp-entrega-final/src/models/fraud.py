@@ -50,22 +50,10 @@ class PixAnalysisModel(Base):
         CheckConstraint("value_band IN ('A', 'B', 'C', 'D')", name="chk_pix_analysis_value_band"),
         CheckConstraint("type IN ('payment', 'refund')", name="chk_pix_analysis_type"),
         CheckConstraint("amount_cents >= 1", name="chk_pix_analysis_amount"),
-        CheckConstraint("payer_class IN ('PF', 'MEI', 'PJ')", name="chk_pix_analysis_payer_class"),
         CheckConstraint(
             "channel IN ('internet', 'celular', 'computador', 'tablet', 'relogio')",
             name="chk_pix_analysis_channel",
         ),
-        CheckConstraint(
-            "challenge_type IN ('CUSTOMER_TOKEN_2FA', 'TRUSTED_CONTACT_APPROVAL')",
-            name="chk_pix_analysis_challenge_type",
-        ),
-        CheckConstraint("friction_answer IN ('YES', 'NO', 'SKIP')", name="chk_pix_analysis_friction_answer"),
-        UniqueConstraint("qi_pix_transfer_key", name="uq_pix_analysis_qi_pix_transfer_key"),
-        CheckConstraint(
-            "qi_transfer_status IN ('pending_2fa_approval', 'sent', 'pending', 'rejected')",
-            name="chk_pix_analysis_qi_transfer_status",
-        ),
-        CheckConstraint("qi_contact_type IN ('sms', 'email')", name="chk_pix_analysis_qi_contact_type"),
         CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="chk_pix_analysis_geolocation"),
         CheckConstraint("geo_accuracy_m IS NULL OR geo_accuracy_m >= 0", name="chk_pix_analysis_geo_accuracy"),
         Index("ix_pix_analysis_source_date", "source_hash", text("transaction_date DESC")),
@@ -92,32 +80,22 @@ class PixAnalysisModel(Base):
     transaction_date = Column(DateTime(timezone=True), nullable=False)
     source_account_id = Column(BigInteger, ForeignKey("account.id"))
     source_hash = Column(CHAR(64), nullable=False)
-    source_masked = Column(String(20), nullable=False)
-    payer_class = Column(String(3))
     destination_account_id = Column(BigInteger, ForeignKey("account.id"))
     destination_key = Column(CHAR(64), nullable=False)
-    destination_masked = Column(String(20), nullable=False)
     device_id = Column(String(255))
     channel = Column(String(20))
     latitude = Column(Float)
     longitude = Column(Float)
     geo_accuracy_m = Column(Integer)
     metadata_ = Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb"))
-    second_factor_at = Column(DateTime(timezone=True))
-    challenge_type = Column(String(30))
-    friction_script_key = Column(String(40))
-    friction_answer = Column(String(4))
-    friction_answered_at = Column(DateTime(timezone=True))
-    second_factor_contact_id = Column(BigInteger, ForeignKey("trusted_contact.id"))
-    qi_account_key = Column(UUID(as_uuid=True))
-    qi_request_control_key = Column(UUID(as_uuid=True))
-    qi_pix_transfer_key = Column(UUID(as_uuid=True))
-    qi_end_to_end_id = Column(String(32))
-    qi_transfer_status = Column(String(30))
-    qi_contact_type = Column(String(5))
-    challenge_expires_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    second_factor = relationship(
+        "PixSecondFactorModel",
+        back_populates="analysis",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     rule_results = relationship(
         "PixRuleResultModel",
         back_populates="analysis",
@@ -129,6 +107,98 @@ class PixAnalysisModel(Base):
     destination_account = relationship("Account", foreign_keys=[destination_account_id])
     feedbacks = relationship("PixFeedbackModel", back_populates="analysis")
     shadow_results = relationship("PixShadowResultModel", back_populates="analysis")
+
+    @property
+    def challenge_type(self) -> str | None:
+        return self.second_factor.challenge_type if self.second_factor else None
+
+    @property
+    def friction_script_key(self) -> str | None:
+        return self.second_factor.friction_script_key if self.second_factor else None
+
+    @property
+    def friction_answer(self) -> str | None:
+        return self.second_factor.friction_answer if self.second_factor else None
+
+    @property
+    def friction_answered_at(self):
+        return self.second_factor.friction_answered_at if self.second_factor else None
+
+    @property
+    def second_factor_at(self):
+        return self.second_factor.second_factor_at if self.second_factor else None
+
+    @property
+    def second_factor_contact_id(self) -> int | None:
+        return self.second_factor.second_factor_contact_id if self.second_factor else None
+
+    @property
+    def qi_account_key(self):
+        return self.second_factor.qi_account_key if self.second_factor else None
+
+    @property
+    def qi_request_control_key(self):
+        return self.second_factor.qi_request_control_key if self.second_factor else None
+
+    @property
+    def qi_pix_transfer_key(self):
+        return self.second_factor.qi_pix_transfer_key if self.second_factor else None
+
+    @property
+    def qi_end_to_end_id(self) -> str | None:
+        return self.second_factor.qi_end_to_end_id if self.second_factor else None
+
+    @property
+    def qi_transfer_status(self) -> str | None:
+        return self.second_factor.qi_transfer_status if self.second_factor else None
+
+    @property
+    def qi_contact_type(self) -> str | None:
+        return self.second_factor.qi_contact_type if self.second_factor else None
+
+    @property
+    def challenge_expires_at(self):
+        return self.second_factor.challenge_expires_at if self.second_factor else None
+
+
+class PixSecondFactorModel(Base):
+    __tablename__ = "pix_second_factor"
+    __table_args__ = (
+        UniqueConstraint("qi_pix_transfer_key", name="uq_pix_second_factor_qi_pix_transfer_key"),
+        CheckConstraint(
+            "challenge_type IN ('CUSTOMER_TOKEN_2FA', 'TRUSTED_CONTACT_APPROVAL')",
+            name="chk_pix_second_factor_challenge_type",
+        ),
+        CheckConstraint("friction_answer IN ('YES', 'NO', 'SKIP')", name="chk_pix_second_factor_friction_answer"),
+        CheckConstraint(
+            "qi_transfer_status IN ('pending_2fa_approval', 'sent', 'pending', 'rejected')",
+            name="chk_pix_second_factor_qi_transfer_status",
+        ),
+        CheckConstraint("qi_contact_type IN ('sms', 'email')", name="chk_pix_second_factor_qi_contact_type"),
+        {"schema": FRAUD_SCHEMA},
+    )
+
+    analysis_id = Column(
+        BigInteger,
+        ForeignKey(f"{FRAUD_SCHEMA}.pix_analysis.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    challenge_type = Column(String(30))
+    friction_script_key = Column(String(40))
+    friction_answer = Column(String(4))
+    friction_answered_at = Column(DateTime(timezone=True))
+    second_factor_at = Column(DateTime(timezone=True))
+    second_factor_contact_id = Column(BigInteger, ForeignKey("trusted_contact.id"))
+    qi_account_key = Column(UUID(as_uuid=True))
+    qi_request_control_key = Column(UUID(as_uuid=True))
+    qi_pix_transfer_key = Column(UUID(as_uuid=True))
+    qi_end_to_end_id = Column(String(32))
+    qi_transfer_status = Column(String(30))
+    qi_contact_type = Column(String(5))
+    challenge_expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    analysis = relationship("PixAnalysisModel", back_populates="second_factor")
 
 
 class PixRuleResultModel(Base):
@@ -289,6 +359,7 @@ class PixShadowResultModel(Base):
 
 
 PixAnalysis = PixAnalysisModel
+PixSecondFactor = PixSecondFactorModel
 PixRuleResult = PixRuleResultModel
 PixFeedback = PixFeedbackModel
 DeviceSeen = DeviceSeenModel

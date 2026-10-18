@@ -389,7 +389,7 @@ A escalada nunca relaxa: um `rejected` não vira `approved`. Para quem integra o
 
 ## Modelo de dados
 
-O motor não tem banco próprio: usa o PostgreSQL 16 do Banco 60+ ([`database/database.sql`](./database/database.sql)), organizado em **19 tabelas relacionais** divididas em dois schemas (`public` com **9 tabelas** do Core Bancário e `fraude` com **10 tabelas** do Motor Antifraude Pix). Ele **só lê** as tabelas do banco (`customer`, `account`, `blocked_mcc`, `merchant`, `trusted_contact`, `bank_transaction`, `ledger_entry`) e **escreve** no schema `fraude` e, para avisos, na `notification_outbox`. Nunca mexe em saldo nem em extrato.
+O motor não tem banco próprio: usa o PostgreSQL 16 do Banco 60+ ([`database/database.sql`](./database/database.sql)), organizado em **20 tabelas relacionais** divididas em dois schemas (`public` com **9 tabelas** do Core Bancário e `fraude` com **11 tabelas** do Motor Antifraude Pix). Ele **só lê** as tabelas do banco (`customer`, `account`, `blocked_mcc`, `merchant`, `trusted_contact`, `bank_transaction`, `ledger_entry`) e **escreve** no schema `fraude` e, para avisos, na `notification_outbox`. Nunca mexe em saldo nem em extrato.
 
 ### Estrutura Completa do Banco de Dados (Diagramas ER — Schemas `public` e `fraude`)
 
@@ -506,7 +506,8 @@ erDiagram
     engine_config ||--o{ pix_analysis : parametriza
     account ||--o{ pix_analysis : avalia
     account ||--o| of_payer_profile : agrega_open_finance
-    trusted_contact ||--o{ pix_analysis : aprova_2fa_social
+    pix_analysis ||--o| pix_second_factor : desafia_2fa
+    trusted_contact ||--o{ pix_second_factor : aprova_2fa_social
     pix_analysis ||--o{ pix_rule_result : grava_regras
     pix_analysis ||--o{ notification_outbox : notifica_retencao
     pix_analysis ||--o{ pix_feedback : recebe_rotulo
@@ -537,27 +538,32 @@ erDiagram
         timestamptz transaction_date
         bigint source_account_id FK
         char source_hash
-        varchar source_masked
-        varchar payer_class
         bigint destination_account_id FK
         char destination_key
-        varchar destination_masked
         varchar device_id
         varchar channel
         double latitude
         double longitude
         integer geo_accuracy_m
         jsonb metadata
-        timestamptz second_factor_at
+        timestamptz created_at
+    }
+
+    pix_second_factor {
+        bigint analysis_id PK
         varchar challenge_type
         varchar friction_script_key
         varchar friction_answer
+        timestamptz friction_answered_at
+        timestamptz second_factor_at
         bigint second_factor_contact_id FK
         uuid qi_account_key
+        uuid qi_request_control_key
         uuid qi_pix_transfer_key UK
+        varchar qi_end_to_end_id
         varchar qi_transfer_status
+        varchar qi_contact_type
         timestamptz challenge_expires_at
-        timestamptz created_at
     }
 
     pix_rule_result {
@@ -632,7 +638,7 @@ erDiagram
     }
 ```
 
-### Dicionário das 19 Tabelas (`public` + `fraude`), Constraints e Índices
+### Dicionário das 20 Tabelas (`public` + `fraude`), Constraints e Índices
 
 | Schema.Tabela | Papel no Sistema | Chave Primária / Única | Principais Constraints (`CHECK`) e Índices |
 | :--- | :--- | :--- | :--- |
@@ -646,7 +652,8 @@ erDiagram
 | `public.ledger_entry` | Livro-razão contábil imutável (*append-only*) | `PK(id)`, `UK(entry_key)` | `CHECK (balance_after_cents >= 0)`, `ix_ledger_account_statement` |
 | `public.notification_outbox` | Fila transacional de avisos (movimentações ou Pix barrados/retidos) | `PK(id)`, `UK(transaction_id, contact_id)`, `UK(analysis_id, contact_id)` | `CHECK ((transaction_id IS NOT NULL) <> (analysis_id IS NOT NULL))`, `idx_outbox_blocked_pix` |
 | `fraude.engine_config` | Parâmetros versionados do motor (`faixas`, `regras`, `flags`) | `PK(version)` | `CHECK (version >= 1)`, `ix_engine_config_active_from` |
-| `fraude.pix_analysis` | Registro completo da análise Pix, fricção e desafio 2FA QI Tech | `PK(id)`, `UK(analysis_key)`, `UK(pix_id)`, `UK(qi_pix_transfer_key)` | 11 `CHECK` constraints (`status`, `value_band`, `payer_class`, `channel`, `qi_transfer_status`...) + 3 índices compostos |
+| `fraude.pix_analysis` | Fato transacional enxuto (22 colunas) e imutável da análise Pix | `PK(id)`, `UK(analysis_key)`, `UK(pix_id)` | 6 `CHECK` constraints (`status`, `value_band`, `type`, `amount_cents`, `channel`, `geo_accuracy_m`) + 3 índices compostos |
+| `fraude.pix_second_factor` | Tabela vertical 1:1 (14 colunas) exclusiva para desafios 2FA e custódia QI Tech | `PK(analysis_id)`, `UK(qi_pix_transfer_key)` | 4 `CHECK` constraints (`challenge_type`, `friction_answer`, `qi_transfer_status`, `qi_contact_type`) |
 | `fraude.pix_rule_result` | Regras acionadas na análise com pontuação bruta e `evidence` JSONB | `PK(id)`, `FK(analysis_id)` | `ix_pix_rule_result_analysis`, `ix_pix_rule_result_rule_code` |
 | `fraude.device_seen` | Vínculo `device_id × source_hash` (`first_seen`, `last_seen`, `tx_count`) | `PK(device_id, source_hash)` | `CHECK (tx_count >= 1)`, `CHECK (last_seen >= first_seen)`, `ix_device_seen_device_first_seen` |
 | `fraude.destination_flag` | Marcações cautelares/regulatórias (`OBSERVACAO`, `QUARENTENA`, `MARCADA`) | `PK(id)` | `CHECK (expires_at > starts_at)`, `ix_destination_flag_key_expires` |
@@ -814,6 +821,7 @@ A tabela abaixo detalha exatamente quantas linhas são inseridas no PostgreSQL d
 | `public.blocked_mcc` | **`17`** | **`650`** | Bloqueio automático do MCC `7995` na abertura de conta (`+50` bloqueios de MCC `7801` no backtest) |
 | `public.bank_transaction` | **`10`** | **`~1.120`** | Transações financeiras liquidadas (`DEPOSIT`, `PURCHASE`, `TRANSFER`) |
 | `public.trusted_contact` | **`9`** | **`600`** | Contatos de confiança cadastrados por conta (com `approval_consent_at` em 40% dos casos no backtest) |
+| `fraude.pix_second_factor` | **`9`** | **`~102`** | Criado somente para análises retidas em `two_factor_required` (ou resolvidas com 2FA / custódia QI Tech) |
 | `public.notification_outbox` | **`4`** | **`~190`** | Eventos `PENDING` gerados para Contatos de Confiança em movimentações ou Pix retidos/rejeitados |
 | `public.merchant` | **`1`** | **`600`** | Estabelecimentos comerciais com CNPJ e MCC (`7995` apostas e serviços diversos) |
 | `fraude.destination_flag` | **`1`** | **`600+`** | Marcações `OBSERVACAO`, `QUARENTENA` e `MARCADA` (seed + geradas pelo motor) |
@@ -822,7 +830,7 @@ A tabela abaixo detalha exatamente quantas linhas são inseridas no PostgreSQL d
 | `fraude.engine_config` | **`32`** *(1 por ciclo × 32)* | **`1`** | Configuração ativa (`version = 1`) carregada por `database.sql` |
 | `fraude.of_payer_profile` | **`0`** *(testado em memória)* | **`600`** | Perfis de renda e saldo externos do Open Finance |
 | `fraude.pix_shadow_result` | **`0`** | **`600`** | Scores do modelo em modo sombra (`shadow-baseline-sintetico-v0`) |
-| **Total de Registros Alimentados** | **`383 linhas`** *(255 dinâmicas + 128 seed)* | **`~10.891 linhas`** | **100% validados pelas constraints do PostgreSQL 16** |
+| **Total de Registros Alimentados** | **`392 linhas`** *(264 dinâmicas + 128 seed)* | **`~10.993 linhas`** | **100% validados pelas constraints do PostgreSQL 16** |
 
 ---
 

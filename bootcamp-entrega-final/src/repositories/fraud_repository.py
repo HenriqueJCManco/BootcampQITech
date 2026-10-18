@@ -38,6 +38,7 @@ from models import (
     PixAnalysisModel,
     PixFeedbackModel,
     PixRuleResultModel,
+    PixSecondFactorModel,
     PixShadowResultModel,
     TrustedContact,
 )
@@ -63,12 +64,13 @@ BLOCKED_PIX_QUERY = text(
         a.amount_cents,
         a.score,
         a.value_band,
-        a.challenge_type,
-        a.friction_script_key,
+        sf.challenge_type,
+        sf.friction_script_key,
         a.metadata -> 'rules_fired' AS rules_fired,
         r.rules_metadata
     FROM notification_outbox o
     JOIN fraude.pix_analysis a ON a.id = o.analysis_id
+    LEFT JOIN fraude.pix_second_factor sf ON sf.analysis_id = a.id
     LEFT JOIN LATERAL (
         SELECT jsonb_agg(
                  jsonb_build_object('rule', rr.rule_code, 'points', rr.points, 'evidence', rr.evidence)
@@ -123,7 +125,10 @@ class FraudRepository:
     def get_analysis_by_pix_id(self, pix_id: str) -> PixAnalysisModel | None:
         return (
             self.session.query(PixAnalysisModel)
-            .options(selectinload(PixAnalysisModel.rule_results))
+            .options(
+                selectinload(PixAnalysisModel.rule_results),
+                selectinload(PixAnalysisModel.second_factor),
+            )
             .filter(PixAnalysisModel.pix_id == pix_id)
             .first()
         )
@@ -329,14 +334,21 @@ class FraudRepository:
         analysis.score = decision.score
         analysis.value_band = decision.value_band
         analysis.engine_version = decision.engine_version
-        analysis.payer_class = decision.payer_class
-        analysis.challenge_type = decision.challenge_type
-        analysis.friction_script_key = decision.friction_script_key
         analysis.metadata_ = metadata
+        if decision.challenge_type is not None or decision.friction_script_key is not None:
+            sf = self._ensure_second_factor(analysis)
+            sf.challenge_type = decision.challenge_type
+            sf.friction_script_key = decision.friction_script_key
         for hit in decision.rules_fired:
             analysis.rule_results.append(
                 PixRuleResultModel(rule_code=hit.code, points=hit.points, evidence=hit.evidence)
             )
+
+    @staticmethod
+    def _ensure_second_factor(analysis: PixAnalysisModel) -> PixSecondFactorModel:
+        if analysis.second_factor is None:
+            analysis.second_factor = PixSecondFactorModel()
+        return analysis.second_factor
 
     def add_rule_result(self, analysis: PixAnalysisModel, rule_code: str, evidence: dict, points: int = 0) -> None:
         analysis.rule_results.append(PixRuleResultModel(rule_code=rule_code, points=points, evidence=evidence))
@@ -453,8 +465,9 @@ class FraudRepository:
             self.session.execute(statement)
 
     def mark_second_factor(self, analysis: PixAnalysisModel, at: datetime, contact_id: int | None = None) -> None:
-        analysis.second_factor_at = at
-        analysis.second_factor_contact_id = contact_id
+        sf = self._ensure_second_factor(analysis)
+        sf.second_factor_at = at
+        sf.second_factor_contact_id = contact_id
 
     def open_qi_challenge(
         self,
@@ -465,27 +478,31 @@ class FraudRepository:
         contact_type: str,
         expires_at: datetime,
     ) -> None:
-        analysis.qi_account_key = account_key
-        analysis.qi_request_control_key = request_control_key
-        analysis.qi_pix_transfer_key = transfer.pix_transfer_key
-        analysis.qi_end_to_end_id = transfer.end_to_end_id
-        analysis.qi_transfer_status = transfer.status
-        analysis.qi_contact_type = contact_type
-        analysis.challenge_expires_at = expires_at
+        sf = self._ensure_second_factor(analysis)
+        sf.qi_account_key = account_key
+        sf.qi_request_control_key = request_control_key
+        sf.qi_pix_transfer_key = transfer.pix_transfer_key
+        sf.qi_end_to_end_id = transfer.end_to_end_id
+        sf.qi_transfer_status = transfer.status
+        sf.qi_contact_type = contact_type
+        sf.challenge_expires_at = expires_at
 
     def update_qi_status(self, analysis: PixAnalysisModel, status: str, expires_at: datetime | None = None) -> None:
-        analysis.qi_transfer_status = status
+        sf = self._ensure_second_factor(analysis)
+        sf.qi_transfer_status = status
         if expires_at is not None:
-            analysis.challenge_expires_at = expires_at
+            sf.challenge_expires_at = expires_at
 
     def close_qi_challenge(self, analysis: PixAnalysisModel) -> None:
-        analysis.qi_pix_transfer_key = None
-        analysis.qi_transfer_status = None
-        analysis.challenge_expires_at = None
+        sf = self._ensure_second_factor(analysis)
+        sf.qi_pix_transfer_key = None
+        sf.qi_transfer_status = None
+        sf.challenge_expires_at = None
 
     def record_friction_answer(self, analysis: PixAnalysisModel, answer: str, at: datetime) -> None:
-        analysis.friction_answer = answer
-        analysis.friction_answered_at = at
+        sf = self._ensure_second_factor(analysis)
+        sf.friction_answer = answer
+        sf.friction_answered_at = at
 
     def add_feedback(self, transaction_id: str, is_fraud: bool, reason: str | None) -> PixFeedbackModel:
         feedback = PixFeedbackModel(transaction_id=transaction_id, is_fraud=is_fraud, reason=reason)

@@ -141,47 +141,23 @@ CREATE TABLE fraude.pix_analysis (
     transaction_date TIMESTAMPTZ NOT NULL,
     source_account_id BIGINT REFERENCES account(id),
     source_hash CHAR(64) NOT NULL,
-    source_masked VARCHAR(20) NOT NULL,
-    payer_class VARCHAR(3),
     destination_account_id BIGINT REFERENCES account(id),
     destination_key CHAR(64) NOT NULL,
-    destination_masked VARCHAR(20) NOT NULL,
     device_id VARCHAR(255),
     channel VARCHAR(20),
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     geo_accuracy_m INTEGER,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    second_factor_at TIMESTAMPTZ,
-    challenge_type VARCHAR(30),
-    friction_script_key VARCHAR(40),
-    friction_answer VARCHAR(4),
-    friction_answered_at TIMESTAMPTZ,
-    second_factor_contact_id BIGINT REFERENCES trusted_contact(id),
-    qi_account_key UUID,
-    qi_request_control_key UUID,
-    qi_pix_transfer_key UUID,
-    qi_end_to_end_id VARCHAR(32),
-    qi_transfer_status VARCHAR(30),
-    qi_contact_type VARCHAR(5),
-    challenge_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_pix_analysis_pix_id UNIQUE (pix_id),
-    CONSTRAINT uq_pix_analysis_qi_pix_transfer_key UNIQUE (qi_pix_transfer_key),
-    CONSTRAINT chk_pix_analysis_qi_transfer_status
-        CHECK (qi_transfer_status IN ('pending_2fa_approval', 'sent', 'pending', 'rejected')),
-    CONSTRAINT chk_pix_analysis_qi_contact_type CHECK (qi_contact_type IN ('sms', 'email')),
     CONSTRAINT chk_pix_analysis_status
         CHECK (status IN ('approved', 'two_factor_required', 'rejected')),
     CONSTRAINT chk_pix_analysis_value_band CHECK (value_band IN ('A', 'B', 'C', 'D')),
     CONSTRAINT chk_pix_analysis_type CHECK (type IN ('payment', 'refund')),
     CONSTRAINT chk_pix_analysis_amount CHECK (amount_cents >= 1),
-    CONSTRAINT chk_pix_analysis_payer_class CHECK (payer_class IN ('PF', 'MEI', 'PJ')),
     CONSTRAINT chk_pix_analysis_channel
         CHECK (channel IN ('internet', 'celular', 'computador', 'tablet', 'relogio')),
-    CONSTRAINT chk_pix_analysis_challenge_type
-        CHECK (challenge_type IN ('CUSTOMER_TOKEN_2FA', 'TRUSTED_CONTACT_APPROVAL')),
-    CONSTRAINT chk_pix_analysis_friction_answer CHECK (friction_answer IN ('YES', 'NO', 'SKIP')),
     CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL)),
     CONSTRAINT chk_pix_analysis_geo_accuracy CHECK (geo_accuracy_m IS NULL OR geo_accuracy_m >= 0)
 );
@@ -192,6 +168,33 @@ CREATE INDEX ix_pix_analysis_destination_date
 CREATE INDEX ix_pix_analysis_device_date
     ON fraude.pix_analysis (device_id, transaction_date DESC)
     WHERE device_id IS NOT NULL;
+
+CREATE TABLE fraude.pix_second_factor (
+    analysis_id BIGINT PRIMARY KEY REFERENCES fraude.pix_analysis(id) ON DELETE CASCADE,
+    challenge_type VARCHAR(30),
+    friction_script_key VARCHAR(40),
+    friction_answer VARCHAR(4),
+    friction_answered_at TIMESTAMPTZ,
+    second_factor_at TIMESTAMPTZ,
+    second_factor_contact_id BIGINT REFERENCES trusted_contact(id),
+    qi_account_key UUID,
+    qi_request_control_key UUID,
+    qi_pix_transfer_key UUID,
+    qi_end_to_end_id VARCHAR(32),
+    qi_transfer_status VARCHAR(30),
+    qi_contact_type VARCHAR(5),
+    challenge_expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_pix_second_factor_qi_pix_transfer_key UNIQUE (qi_pix_transfer_key),
+    CONSTRAINT chk_pix_second_factor_challenge_type
+        CHECK (challenge_type IN ('CUSTOMER_TOKEN_2FA', 'TRUSTED_CONTACT_APPROVAL')),
+    CONSTRAINT chk_pix_second_factor_friction_answer
+        CHECK (friction_answer IN ('YES', 'NO', 'SKIP')),
+    CONSTRAINT chk_pix_second_factor_qi_transfer_status
+        CHECK (qi_transfer_status IN ('pending_2fa_approval', 'sent', 'pending', 'rejected')),
+    CONSTRAINT chk_pix_second_factor_qi_contact_type
+        CHECK (qi_contact_type IN ('sms', 'email'))
+);
 
 CREATE TABLE fraude.pix_rule_result (
     id BIGSERIAL PRIMARY KEY,

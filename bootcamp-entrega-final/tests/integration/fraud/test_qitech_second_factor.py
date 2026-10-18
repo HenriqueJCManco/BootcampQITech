@@ -65,8 +65,11 @@ def confirm(client, pix_id: str, token: str, **extra):
 
 def stored(session, pix_id: str) -> dict:
     row = session.execute(text(
-        "SELECT status, qi_pix_transfer_key, qi_transfer_status, qi_account_key, challenge_expires_at, "
-        "second_factor_at FROM fraude.pix_analysis WHERE pix_id = :id"
+        "SELECT a.status, sf.qi_pix_transfer_key, sf.qi_transfer_status, sf.qi_account_key, "
+        "sf.challenge_expires_at, sf.second_factor_at "
+        "FROM fraude.pix_analysis a "
+        "LEFT JOIN fraude.pix_second_factor sf ON sf.analysis_id = a.id "
+        "WHERE a.pix_id = :id"
     ), {"id": pix_id}).mappings().one()
     return dict(row)
 

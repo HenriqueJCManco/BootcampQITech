@@ -50,15 +50,15 @@ class SecondFactorService:
         )
         self.set_status(analysis, REJECTED)
 
-    @staticmethod
-    def set_status(analysis, status: str, challenge_type: str | None = None) -> None:
+    def set_status(self, analysis, status: str, challenge_type: str | None = None) -> None:
         metadata = dict(analysis.metadata_)
         if status == APPROVED:
             metadata["customer_message_key"] = None
         elif status == REJECTED:
             metadata["customer_message_key"] = BLOCKED_FOR_SAFETY
         if challenge_type is not None:
-            analysis.challenge_type = challenge_type
+            sf = self.repository._ensure_second_factor(analysis)
+            sf.challenge_type = challenge_type
             metadata["challenge_type"] = challenge_type
         analysis.status = status
         analysis.metadata_ = metadata

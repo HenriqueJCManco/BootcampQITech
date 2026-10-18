@@ -39,13 +39,14 @@ QUERY = text(
     """
     SELECT a.pix_id, a.amount_cents, a.score, a.value_band, a.metadata, a.channel,
            EXISTS (SELECT 1 FROM notification_outbox o WHERE o.analysis_id = a.id) AS has_outbox,
-           CASE WHEN a.second_factor_at IS NOT NULL THEN 'two_factor_required' ELSE a.status END AS decision,
+           CASE WHEN sf.second_factor_at IS NOT NULL THEN 'two_factor_required' ELSE a.status END AS decision,
            f.is_fraud, f.reason,
            coalesce(array_agg(r.rule_code ORDER BY r.id) FILTER (WHERE r.rule_code IS NOT NULL), '{}') AS rules
     FROM fraude.pix_analysis a
+    LEFT JOIN fraude.pix_second_factor sf ON sf.analysis_id = a.id
     JOIN fraude.pix_feedback f ON f.transaction_id = a.pix_id
     LEFT JOIN fraude.pix_rule_result r ON r.analysis_id = a.id
-    GROUP BY a.id, f.is_fraud, f.reason
+    GROUP BY a.id, sf.second_factor_at, f.is_fraud, f.reason
     """
 )
 
@@ -243,9 +244,9 @@ def channel_section(rows: list[dict], channel_hits: list[dict], legit: list[dict
 
 TABLES = [
     "customer", "account", "merchant", "blocked_mcc", "trusted_contact", "bank_transaction", "ledger_entry",
-    "notification_outbox", "fraude.engine_config", "fraude.pix_analysis", "fraude.pix_rule_result",
-    "fraude.device_seen", "fraude.destination_flag", "fraude.destination_reputation", "fraude.of_payer_profile",
-    "fraude.pix_feedback", "fraude.pix_shadow_result", "fraude.bet_destination",
+    "notification_outbox", "fraude.engine_config", "fraude.pix_analysis", "fraude.pix_second_factor",
+    "fraude.pix_rule_result", "fraude.device_seen", "fraude.destination_flag", "fraude.destination_reputation",
+    "fraude.of_payer_profile", "fraude.pix_feedback", "fraude.pix_shadow_result", "fraude.bet_destination",
 ]
 
 
