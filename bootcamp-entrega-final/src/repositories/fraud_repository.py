@@ -153,11 +153,13 @@ class FraudRepository:
             )
             return PayerSnapshot(source_hash=source_hash, history=history, amount_history=amount_history)
 
+        since = at - timedelta(days=HISTORY_DAYS)
+        transfers, deposits = self._ledger_movements_pair(account.id, since, at)
         return PayerSnapshot(
             source_hash=source_hash,
             history=history,
-            amount_history=self._ledger_movements(account.id, "DEBIT", "TRANSFER", at - timedelta(days=HISTORY_DAYS), at),
-            deposits=self._ledger_movements(account.id, "CREDIT", "DEPOSIT", at - timedelta(days=HISTORY_DAYS), at),
+            amount_history=transfers,
+            deposits=deposits,
             account_created_at=account.created_at,
             balance_cents=account.balance_cents,
             blocked_mccs=frozenset(self._blocked_mccs(account.id)),
@@ -200,22 +202,36 @@ class FraudRepository:
             geolocation=geolocation,
         )
 
-    def _ledger_movements(
-        self, account_id: int, direction: str, kind: str, since: datetime, until: datetime
-    ) -> tuple[MoneyMovement, ...]:
+    def _ledger_movements_pair(
+        self, account_id: int, since: datetime, until: datetime
+    ) -> tuple[tuple[MoneyMovement, ...], tuple[MoneyMovement, ...]]:
         rows = (
-            self.session.query(LedgerEntry.entry_datetime, LedgerEntry.amount_cents)
+            self.session.query(
+                LedgerEntry.direction,
+                LedgerEntry.kind,
+                LedgerEntry.entry_datetime,
+                LedgerEntry.amount_cents,
+            )
             .filter(
                 LedgerEntry.account_id == account_id,
-                LedgerEntry.direction == direction,
-                LedgerEntry.kind == kind,
+                LedgerEntry.kind.in_(("TRANSFER", "DEPOSIT")),
                 LedgerEntry.entry_datetime >= since,
                 LedgerEntry.entry_datetime <= until,
             )
             .order_by(LedgerEntry.entry_datetime)
             .all()
         )
-        return tuple(MoneyMovement(occurred_at, amount) for occurred_at, amount in rows)
+        transfers = tuple(
+            MoneyMovement(occurred_at, amount)
+            for direction, kind, occurred_at, amount in rows
+            if direction == "DEBIT" and kind == "TRANSFER"
+        )
+        deposits = tuple(
+            MoneyMovement(occurred_at, amount)
+            for direction, kind, occurred_at, amount in rows
+            if direction == "CREDIT" and kind == "DEPOSIT"
+        )
+        return transfers, deposits
 
     def _blocked_mccs(self, account_id: int) -> list[str]:
         return [mcc for (mcc,) in self.session.query(BlockedMCC.mcc).filter(BlockedMCC.account_id == account_id)]
@@ -252,24 +268,33 @@ class FraudRepository:
             .filter(DestinationFlagModel.destination_key == destination_key, DestinationFlagModel.expires_at > at)
             .all()
         )
-        reputation = self.session.get(DestinationReputationModel, destination_key)
-        merchant_mcc = (
-            self.session.query(Merchant.mcc)
-            .filter(digits_only(Merchant.document_number) == digits_only(literal(document)))
-            .scalar()
+        clean_doc = digits_only(literal(document))
+        merchant_subq = (
+            select(Merchant.mcc)
+            .where(digits_only(Merchant.document_number) == clean_doc)
+            .limit(1)
+            .scalar_subquery()
         )
-        bet_registered = self.session.query(
-            exists().where(
-                BetDestinationModel.cnpj == func.regexp_replace(literal(document), "[^0-9]", "", "g"),
-                BetDestinationModel.active.is_(True),
+        bet_subq = exists().where(
+            BetDestinationModel.cnpj == clean_doc,
+            BetDestinationModel.active.is_(True),
+        )
+        anchor = select(literal(destination_key).label("dk")).subquery()
+        reputation, merchant_mcc, bet_registered = (
+            self.session.query(DestinationReputationModel, merchant_subq, bet_subq)
+            .select_from(anchor)
+            .outerjoin(
+                DestinationReputationModel,
+                DestinationReputationModel.destination_key == anchor.c.dk,
             )
-        ).scalar()
+            .one()
+        )
         return DestinationSnapshot(
             destination_key=destination_key,
             document=document,
             account_created_at=account.created_at if account is not None else None,
             merchant_mcc=merchant_mcc,
-            bet_registered=bet_registered,
+            bet_registered=bool(bet_registered),
             flags=tuple(DestinationFlag(flag.status, flag.starts_at, flag.expires_at) for flag in flags),
             reputation=self._to_reputation(reputation),
         )
@@ -289,21 +314,20 @@ class FraudRepository:
     def load_device_snapshot(self, device_id: str | None, source_hash: str, at: datetime) -> DeviceSnapshot:
         if device_id is None:
             return DeviceSnapshot()
-        first_seen = (
-            self.session.query(DeviceSeenModel.first_seen)
-            .filter(DeviceSeenModel.device_id == device_id, DeviceSeenModel.source_hash == source_hash)
-            .scalar()
-        )
-        others = (
-            self.session.query(func.count(DeviceSeenModel.source_hash))
-            .filter(
-                DeviceSeenModel.device_id == device_id,
-                DeviceSeenModel.source_hash != source_hash,
-                DeviceSeenModel.last_seen >= at - timedelta(days=7),
+        first_seen, others = (
+            self.session.query(
+                func.max(DeviceSeenModel.first_seen).filter(DeviceSeenModel.source_hash == source_hash),
+                func.count(DeviceSeenModel.source_hash).filter(
+                    and_(
+                        DeviceSeenModel.source_hash != source_hash,
+                        DeviceSeenModel.last_seen >= at - timedelta(days=7),
+                    )
+                ),
             )
-            .scalar()
+            .filter(DeviceSeenModel.device_id == device_id)
+            .one()
         )
-        return DeviceSnapshot(first_seen=first_seen, distinct_payers_7d=others + 1)
+        return DeviceSnapshot(first_seen=first_seen, distinct_payers_7d=(others or 0) + 1)
 
     def persist_analysis(
         self,
@@ -455,14 +479,15 @@ class FraudRepository:
             )
 
     def add_outbox_notifications(self, analysis_id: int, account_id: int) -> None:
-        contact_ids = select(TrustedContact.id).where(TrustedContact.account_id == account_id)
-        for (contact_id,) in self.session.execute(contact_ids).all():
-            statement = (
-                insert(NotificationOutbox)
-                .values(analysis_id=analysis_id, contact_id=contact_id)
-                .on_conflict_do_nothing(index_elements=[NotificationOutbox.analysis_id, NotificationOutbox.contact_id])
+        statement = (
+            insert(NotificationOutbox)
+            .from_select(
+                ["analysis_id", "contact_id"],
+                select(literal(analysis_id), TrustedContact.id).where(TrustedContact.account_id == account_id),
             )
-            self.session.execute(statement)
+            .on_conflict_do_nothing(index_elements=[NotificationOutbox.analysis_id, NotificationOutbox.contact_id])
+        )
+        self.session.execute(statement)
 
     def mark_second_factor(self, analysis: PixAnalysisModel, at: datetime, contact_id: int | None = None) -> None:
         sf = self._ensure_second_factor(analysis)

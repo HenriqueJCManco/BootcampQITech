@@ -8,6 +8,8 @@ CREATE TABLE customer (
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX ix_customer_document_digits
+    ON customer ((regexp_replace(document_number, '[^0-9]', '', 'g')));
 
 CREATE TABLE account (
     id BIGSERIAL PRIMARY KEY,
@@ -26,6 +28,8 @@ CREATE TABLE merchant (
     name VARCHAR(255) NOT NULL,
     mcc CHAR(4) NOT NULL
 );
+CREATE INDEX ix_merchant_document_digits
+    ON merchant ((regexp_replace(document_number, '[^0-9]', '', 'g')));
 
 CREATE TABLE blocked_mcc (
     id BIGSERIAL PRIMARY KEY,
@@ -95,6 +99,9 @@ CREATE INDEX ix_ledger_account_statement
     ON ledger_entry (account_id, entry_datetime DESC, id DESC);
 CREATE INDEX ix_ledger_entry_transaction_id
     ON ledger_entry (transaction_id);
+CREATE INDEX ix_ledger_account_direction_kind_date
+    ON ledger_entry (account_id, direction, kind, entry_datetime)
+    INCLUDE (amount_cents);
 
 CREATE TABLE notification_outbox (
     id BIGSERIAL PRIMARY KEY,
@@ -221,6 +228,8 @@ CREATE TABLE fraude.device_seen (
 );
 CREATE INDEX ix_device_seen_device_first_seen
     ON fraude.device_seen (device_id, first_seen);
+CREATE INDEX ix_device_seen_device_last_seen
+    ON fraude.device_seen (device_id, last_seen DESC);
 
 CREATE TABLE fraude.destination_flag (
     id BIGSERIAL PRIMARY KEY,

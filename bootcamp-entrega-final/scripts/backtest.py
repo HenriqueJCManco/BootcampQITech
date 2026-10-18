@@ -23,15 +23,14 @@ REPORT = ROOT / "docs" / "backtest-massa-sintetica.md"
 TWO_FACTOR_TARGET = (0.02, 0.05)
 SCORE_REJECTION_LIMIT = 0.01
 ELIMINATORY_EXPECTED = {"E1", "E2", "E3", "E4", "E5", "E6"}
-SEGMENTS = {"celular": "mobile", "tablet": "mobile", "computador": "desktop", "internet": "desktop",
-            "relogio": "relogio"}
-CHANNEL_RULES = ("G4", "K1", "K2", "R1", "R2")
+SEGMENTS = {"celular": "mobile", "tablet": "mobile", "computador": "desktop", "internet": "desktop"}
+CHANNEL_RULES = ("G4", "K1", "R1", "R2")
 
 RULE_EVIDENCE_QUERY = text(
     """
     SELECT a.pix_id, r.rule_code, r.evidence
     FROM fraude.pix_rule_result r JOIN fraude.pix_analysis a ON a.id = r.analysis_id
-    WHERE r.rule_code IN ('G4', 'K1', 'K2', 'R1', 'R2')
+    WHERE r.rule_code IN ('G4', 'K1', 'R1', 'R2')
     """
 )
 
@@ -178,7 +177,7 @@ def channel_section(rows: list[dict], channel_hits: list[dict], legit: list[dict
         "| Segmento | Pix | Legítimos | Fricção em legítimos | Golpes | Golpes interceptados | Valor contido |",
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for segment in ("mobile", "desktop", "relogio"):
+    for segment in ("mobile", "desktop"):
         items = [row for row in rows if SEGMENTS.get(row["channel"]) == segment]
         segment_legit = [row for row in items if row["pix_id"] in legit_ids]
         segment_fraud = [row for row in items if row["pix_id"] in fraud_ids]
@@ -212,8 +211,6 @@ def channel_section(rows: list[dict], channel_hits: list[dict], legit: list[dict
                     "golpes desktop (os demais pararam numa eliminatória)")
         elif code == "K1":
             note = f"por segmento: {dict(Counter(hit['evidence'].get('segment') for hit in hits))}"
-        elif code == "K2":
-            note = "piso de 2FA, sem pontos"
         lines.append(f"| {code} | {on_legit} | {on_fraud} | {note} |")
 
     alias = [row for row in rows if row["pix_id"].startswith("pix-app-")]
