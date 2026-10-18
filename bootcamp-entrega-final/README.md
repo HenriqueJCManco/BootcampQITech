@@ -904,3 +904,5 @@ Todo erro tem `code`, `title`, `description`, `translation`, `request_id` e `err
 **Melhorias conhecidas:**
 - Trocar o hash SHA-256 simples do CPF por HMAC com chave secreta. O espaço de CPFs é pequeno e o hash simples pode ser revertido por força bruta.
 - Calibrar P1 e C7, conforme o backtest acima.
+- Sabemos que a PEC modificou a liberação das BETs porém ainda existem de forma fraudulenta e uma das opções para reconhecer a fraude é o número de transações a noite, incomum para uma pessoa 60+ em sua residência cadastrada, visto que, a maior parte das pessoas aposta após o horário comercial 
+- Fluxo maior de renda é um problema, uma vez que, o publico majoritário é de consumo até a faixa cadastrada, fora disso é estudo de ampliação de mercado
