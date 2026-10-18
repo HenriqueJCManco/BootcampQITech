@@ -34,125 +34,125 @@ Antifraude de Pix para um banco de público 60+ (aposentados e pensionistas, ren
 
 ## Como o motor de decisão funciona
 
-O motor recebe o Pix **antes de o dinheiro sair** e responde `approved`, `two_factor_required` ou `rejected`. Tudo acontece em **uma passagem síncrona, sem chamada externa e sem analista**. Ele roda sobre o banco do Banco 60+ (RFC anterior) como o **passo 4b** do funil de transferência: depois do Cofre Antivícios e antes da trava das contas.
+O **Motor Antifraude Pix Seguro 60+** avalia cada Pix **antes de o dinheiro sair da conta** e devolve uma de três decisões:
+* **Aprovado (`approved`):** a operação segue normalmente para transferência do saldo;
+* **Segundo Fator Obrigatório (`two_factor_required`):** a operação fica retida aguardando confirmação por código de segurança (enviado ao próprio idoso ou ao seu Contato de Confiança familiar);
+* **Reprovado (`rejected`):** a operação é bloqueada preventivamente e o saldo permanece intacto.
 
-### Onde o motor entra no Banco 60+ (passo 4b) e o 2FA
+Toda a análise ocorre em **uma única passagem rápida (~38 ms)**, consultando apenas dados locais já existentes no banco, sem depender de chamadas externas lentas durante a avaliação do risco.
 
-![Integração do motor no passo 4b do Banco 60+ e fluxo do 2FA](docs/diagramas/01-integracao-passo-4b.svg)
+---
 
-<details>
-<summary>Código Mermaid deste diagrama</summary>
+### 1. Onde o Motor Entra na Jornada do Pix (Visão de Ponta a Ponta)
+
+No Banco 60+, o motor atua como um **portão de segurança intermediário**: ele é acionado depois que o banco confere os dados básicos da conta e do Cofre Antivícios, mas **antes** de movimentar o saldo ou registrar débitos no extrato.
 
 ```mermaid
 flowchart TD
-    A["App: POST /transfer<br/>com Idempotency-Key"] --> B["transaction-api, passos 1 a 4<br/>valida, busca contas, reserva a chave, Cofre"]
-    B --> C["4b: chama o motor<br/>id do Pix = Idempotency-Key"]
-    C --> D{"Resposta do motor"}
-    D -- approved --> E["Passos 5 a 8: trava as contas,<br/>confere saldo, grava o ledger, COMMIT"]
-    E --> F["201 para o app"]
-    D -- rejected --> G["ROLLBACK<br/>422 BNK004008 BLOCKED_FOR_SAFETY"]
-    D -- "sem resposta ou 5xx" --> H["503 BNK004010<br/>repetir com a mesma chave"]
-    D -- two_factor_required --> I["ROLLBACK, 422 BNK004009<br/>challenge_type e friction_script_key"]
-    I --> J["POST .../second_factor<br/>QI Tech: pix_transfer com tfa_info"]
-    J --> K["QI envia token de 6 caracteres por SMS ou e-mail<br/>ao cliente ou ao Contato de Confiança"]
-    K --> L["PUT .../second_factor/token<br/>token e friction_answer"]
-    L --> M{"Respondeu YES em<br/>CALL_COACHING_CHECK?"}
-    M -- "sim, sem Contato" --> G
-    M -- "sim, com Contato consentido" --> O["TRUSTED_CONTACT_APPROVAL<br/>novo desafio para o Contato"]
-    O --> J
-    M -- não --> P{"QI valida o token"}
-    P -- "sent ou pending" --> N["approved, grava second_factor_at"]
-    N --> E
-    P -- "token errado ou expirado" --> L
-    P -- "5 tentativas erradas" --> G
+    A["Cliente 60+ solicita um Pix no Aplicativo"] --> B["Core Bancário valida a conta e as travas do Cofre Antivícios"]
+    B --> C["Motor Antifraude avalia o risco da operação antes de mexer no saldo"]
+    C --> D{"Qual foi a decisão do motor?"}
+
+    D -- "Aprovado (Baixo Risco)" --> E["Core Bancário debita o saldo, registra no extrato e conclui o Pix"]
+    D -- "Reprovado (Risco Claro ou Regra Regulatória)" --> F["Operação bloqueada preventivamente (saldo intacto) + Aviso ao Familiar"]
+    D -- "Exige Segundo Fator (Suspeita Moderada)" --> G["Pix fica retido em custódia e abre desafio de validação na QI Tech"]
+
+    G --> H["Aplicativo exibe pergunta educativa anti-engenharia social"]
+    H --> I{"O cliente relatou estar em ligação com suposto atendente?"}
+
+    I -- "Sim, e possui Familiar de Confiança cadastrado" --> J["Transfere a aprovação para o Familiar de Confiança"]
+    I -- "Sim, e não possui Familiar cadastrado" --> F
+    I -- "Não (opera por conta própria)" --> K["Valida o código de 6 dígitos enviado por SMS ou E-mail"]
+
+    J --> K
+    K -- "Código confirmado com sucesso" --> E
+    K -- "Excesso de tentativas incorretas" --> F
 ```
 
-</details>
+* **Por que essa posição importa:** como o motor grava sua análise antes da movimentação financeira, mesmo quando um Pix é bloqueado e a transferência bancária é cancelada, o histórico completo da tentativa de golpe permanece salvo para proteger as próximas operações.
 
-A análise é gravada no schema `fraude` com `COMMIT` próprio, antes da trava das contas. O `ROLLBACK` da `transaction-api` não apaga o rastro de um Pix barrado.
+---
 
-### Fluxo de um Pix dentro do motor
+### 2. Fluxo de Avaliação de um Pix Dentro do Motor
 
-![Fluxo de um Pix dentro do motor](docs/diagramas/02-fluxo-do-pix.svg)
-
-<details>
-<summary>Código Mermaid deste diagrama</summary>
+Quando uma transação chega ao motor, ela passa por **5 etapas sequenciais** que separam bloqueios imediatos de comportamentos suspeitos graduais:
 
 ```mermaid
-flowchart TD
-    A["POST /pix/transaction"] --> B{"Token, JSON Schema,<br/>fuso e CPF/CNPJ válidos?"}
-    B -- não --> X["400, 403 ou 422 (AFP)<br/>nada é gravado"]
-    B -- sim --> C["Reserva o id<br/>INSERT ... ON CONFLICT DO NOTHING"]
-    C --> D{"O id já existia?"}
-    D -- "sim, mesmo corpo" --> R1["200: devolve a análise original<br/>ou aplica o 2FA concluído"]
-    D -- "sim, outro corpo" --> R2["409 AFP000004"]
-    D -- não --> E["Trava só o pagador<br/>pg_advisory_xact_lock"]
-    E -- "espera maior que 2 s" --> R3["503 AFP000009, ROLLBACK"]
-    E --> F["Lê histórico, ledger, aparelho,<br/>reputação do destino e Open Finance"]
-    F --> G{"Alguma eliminatória<br/>E1 a E6?"}
-    G -- sim --> REJ["rejected"]
-    G -- não --> H["Soma os pontos<br/>com teto por família"]
-    H --> I{"score maior ou igual ao<br/>corte de reprovar da faixa?"}
-    I -- sim --> REJ
-    I -- não --> J{"score maior ou igual ao corte<br/>de 2FA ou algum piso ativo?"}
-    J -- sim --> TFA["two_factor_required"]
-    J -- não --> APR["approved"]
-    REJ --> K["Grava análise, regras, aparelho, reputação,<br/>marcações e aviso na outbox, COMMIT"]
-    TFA --> K
-    APR --> K
-    K --> L["201 com key, status e metadata"]
-```
-
-</details>
-
-Dentro da trava só há consulta ao banco e regras em memória; nada externo é chamado. Pagadores diferentes não esperam um pelo outro.
-
-### Arquitetura do código
-
-Seguimos a estrutura do Base Service. A regra de negócio fica em `src/domain/`, sem dependência de banco nem de framework.
-
-![Arquitetura do código](docs/diagramas/03-arquitetura.svg)
-
-<details>
-<summary>Código Mermaid deste diagrama</summary>
-
-```mermaid
-flowchart TD
-    TA["transaction-api<br/>do Banco 60+"] -- "INTERNAL-TOKEN" --> MW["middlewares<br/>token, sessão, log"]
-    MW --> RS["resources/pix.py<br/>schemas/post_pix_transaction.json"]
-    RS --> CT["controllers/<br/>avaliar_pix_controller.py"]
-    CT --> EN
-    subgraph DM["domain/, sem banco nem framework"]
+flowchart LR
+    subgraph E1["1. Entrada e Proteção contra Duplicidade"]
         direction TB
-        EN["engine.py<br/>ordem, teto, pisos, decide"]
-        RU["rules/<br/>eliminatory, scoring, channel"]
-        FA["facts, reputation,<br/>payer_class, statistics"]
-        EN --> RU
-        RU --> FA
+        A1["Recebe os dados do Pix e valida formato, data e documentos"] --> A2{"Transação já foi analisada antes?"}
+        A2 -- "Sim" --> A3["Devolve a mesma decisão anterior sem processar duas vezes"]
     end
-    CT --> RP["repositories/<br/>fraud_repository.py"]
-    RP --> BK
-    RP --> FR
-    subgraph PG["PostgreSQL do Banco 60+"]
-        BK[("schema do banco<br/>customer, account, ledger_entry,<br/>notification_outbox")]
-        FR[("schema fraude<br/>pix_analysis, pix_rule_result,<br/>engine_config, reputação")]
+
+    subgraph E2["2. Leitura do Contexto"]
+        direction TB
+        B1["Sincroniza a fila do pagador para evitar rajadas simultâneas"] --> B2["Carrega histórico de Pix, perfil do aparelho, reputação do recebedor e capacidade financeira"]
     end
-    CT --> DT["dtos/pix_dto.py"]
-    DT -- "key, status, metadata" --> TA
+
+    subgraph E3["3. Regras Eliminatórias"]
+        direction TB
+        C1{"Viola alguma barreira obrigatória?<br/>(Apostas, Conta Marcada por Fraude, Quarentena ou Teto Noturno/Aparelho Novo)"}
+    end
+
+    subgraph E4["4. Pontuação Comportamental"]
+        direction TB
+        D1["Soma pontos de risco por categoria (Aparelho, Localização, Recebedor, Hábito e Renda)"] --> D2["Aplica desconto se o recebedor já for de confiança recorrente (ex.: aluguel mensal)"]
+        D2 --> D3{"Compara a pontuação com os limites da faixa de valor do Pix"}
+    end
+
+    subgraph E5["5. Decisão e Registro"]
+        direction TB
+        F1["Grava a decisão, os motivos detalhados, atualiza a reputação do destino e agenda aviso ao familiar"]
+    end
+
+    A2 -- "Não (Nova)" --> B1
+    B2 --> C1
+    C1 -- "Sim" --> R_REJ["Decisão: Reprovado"]
+    C1 -- "Não" --> D1
+    D3 -- "Acima do limite máximo" --> R_REJ
+    D3 -- "Faixa intermediária ou alerta crítico" --> R_2FA["Decisão: Segundo Fator"]
+    D3 -- "Pontuação baixa" --> R_APR["Decisão: Aprovado"]
+    R_REJ --> F1
+    R_2FA --> F1
+    R_APR --> F1
 ```
 
-</details>
+1. **Proteção contra duplicidade:** se o aplicativo reenviar o mesmo Pix por oscilação de internet, o motor reconhece o identificador e devolve a mesma resposta sem recalcular nem duplicar contadores.
+2. **Fila por pagador:** apenas transações da **mesma pessoa** aguardam em fila para impedir que duas transferências simultâneas burlem o limite diário; clientes diferentes são atendidos em paralelo.
+3. **Barreiras eliminatórias antes da pontuação:** regras regulatórias ou de proteção absoluta (como casas de apostas bloqueadas, contas denunciadas por fraude ou excesso noturno para desconhecidos) reprovam imediatamente.
+4. **Pontuação proporcional ao valor:** quanto maior o valor do Pix, menor a tolerância a sinais de risco. Além disso, sinais da mesma natureza têm um limite máximo para não punir duas vezes pelo mesmo motivo.
+5. ** Memória contínua:** ao final de cada análise, o motor atualiza automaticamente a reputação do recebedor e o histórico do aparelho.
 
-O repositório é o único ponto que fala com o banco. O motor só lê as tabelas do Banco 60+ e só escreve no schema `fraude` e na `notification_outbox`.
+---
 
-### Garantias
+### 3. Arquitetura do Código (Divisão de Responsabilidades)
 
-1. **Decisão em uma passagem, sem chamada externa.** O Open Finance entra por carga assíncrona em tabela local, e o 2FA roda depois da resposta.
-2. **Fricção só onde há dúvida.** Aprovar é o padrão.
-3. **Cofre antes do score.** As eliminatórias rodam antes da pontuação.
-4. **Nada em dobro.** O `id` do Pix é único, e reenviar devolve a análise existente.
-5. **Histórico completo.** Cada Pix fica gravado com decisão, pontos e a evidência numérica de cada regra.
-6. **Motivo claro sem ensinar o golpista.** O status é simples. Os motivos ficam na `metadata`, que só a `transaction-api` lê (com `INTERNAL-TOKEN`). O app recebe apenas a `customer_message_key`.
+O código foi estruturado em camadas independentes para que o **Cérebro de Regras Antifraude** funcione 100% isolado de detalhes de rede ou de banco de dados:
+
+```mermaid
+flowchart LR
+    EXT["Aplicativo / Core Bancário"] --> SEG["Camada de Segurança e Entrada<br/>(Autenticação, Rastreamento e Validação de Contrato)"]
+    SEG --> ORQ["Camada de Orquestração<br/>(Coordena o Fluxo da Análise e do Segundo Fator)"]
+
+    ORQ --> DOM["Cérebro de Decisão Antifraude<br/>(100% em Memória: Regras Eliminatórias, Pontuação, Perfil de Hábito e Reputação)"]
+    ORQ --> REP["Camada de Dados<br/>(Consultas e Gravações Atômicas)"]
+    ORQ --> QIT["Integração Externa de 2FA<br/>(Envio e Validação de Código via QI Tech)"]
+
+    REP --> DB_PUB[("Dados Bancários (Somente Leitura)<br/>Clientes, Contas, Extrato, Cofre e Familiares")]
+    REP --> DB_FRD[("Dados Antifraude (Leitura e Escrita)<br/>Análises, Regras Acionadas, 2FA e Reputação")]
+```
+
+* **Camada de Segurança e Entrada (`middlewares` + `resources`):** confere a credencial interna da requisição, valida se todos os campos enviados respeitam o formato esperado e formata a resposta final.
+* **Camada de Orquestração (`controllers`):** coordena o passo a passo — pede os dados ao banco, entrega tudo pronto para o cérebro antifraude decidir, salva o resultado e, quando necessário, aciona o envio de token na QI Tech.
+* **Cérebro de Decisão Antifraude (`domain`):** contém toda a inteligência das 26 regras, cálculo estatístico de hábito do idoso e classificação de risco. Não faz chamadas de rede nem consultas SQL, o que garante velocidade em milissegundos e 100% de cobertura em testes unitários.
+* **Camada de Dados (`repositories` + `models`):** único ponto que conversa com o PostgreSQL. Lê os dados cadastrais e de extrato do banco (sem nunca alterar saldo) e grava todas as evidências e decisões no ambiente antifraude.
+
+### Garantias de Produto e Engenharia
+
+1. **Decisão rápida em uma única passagem:** nenhuma chamada externa ocorre durante o cálculo de risco; dados do Open Finance são consultados localmente e o envio de token 2FA ocorre apenas após a decisão.
+2. **Fricção somente onde há dúvida:** transações habituais (como pagar o mesmo aluguel todo mês) recebem bônus de confiança e passam sem bloqueio.
+3. **Explicabilidade completa sem expor a regra ao fraudador:** cada decisão salva internamente quais sinais foram acionados e seus valores exatos para auditoria, mas o aplicativo recebe apenas uma mensagem amigável orientando o cliente.
 
 ---
 
@@ -301,89 +301,76 @@ Todas as rotas, menos `/` e `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN
 
 ### Racional das escolhas
 
-- **Por que P95 e não média ± desvio-padrão.** Um valor atípico puxa as duas medidas, e no 60+ ele é comum (reforma, remédio, funeral). Com 17 Pix de R$ 200 e um de R$ 8.000, a média + 3 desvios chega a cerca de R$ 5.994, e uma fraude de R$ 5.900 passaria. O P95 fica em cerca de R$ 1.370, como comprova um teste unitário. Com poucos pontos o P95 também oscila, por isso o mínimo de 10 observações e o piso de R$ 500.
-- **Teto por família.** Regras da mesma família tendem a contar o mesmo fato duas vezes, então a soma de cada uma é limitada antes de entrar no score. Os tetos são: aparelho (D1, D2, D3) 45, geografia (G1, G2, G4) 40, destino (C1, C2, C5–C8) 55, comportamento (K1, P1, P2, M1, M2, V1, V2) 60. Pontos negativos, R1, R2, O1 e F ficam fora do teto. Quando um teto age, a `metadata` traz `family_caps_applied`.
-- **Reputação do destino.** Nenhum destino é rejeitado só por ser novo, porque o neto que abriu conta ontem é legítimo. Só a convergência com C5, C6 ou C7 leva à quarentena.
-
-![Estados da reputação do destino](docs/diagramas/04-reputacao-do-destino.svg)
-
-<details>
-<summary>Código Mermaid deste diagrama</summary>
+- **Por que usar o Percentil 95 (P95) e não média com desvio-padrão:** um único gasto alto atípico (reforma, cirurgia, remédio caro) distorce a média e o desvio-padrão para cima. Por exemplo, com 17 Pix de R$ 200 e um de R$ 8.000, a média somada a 3 desvios sobe para R$ 5.994 — deixando passar um golpe de R$ 5.900 sem alerta. O Percentil 95 permanece em R$ 1.370, isolando o valor fora da curva.
+- **Limite máximo de pontos por categoria (Teto por Família):** sinais da mesma natureza não devem punir o cliente duas vezes pelo mesmo fato. Por isso, cada grupo tem um teto máximo antes de somar na nota final:
+  - **Aparelho:** máximo de 45 pontos;
+  - **Geolocalização:** máximo de 40 pontos;
+  - **Perfil do Recebedor:** máximo de 55 pontos;
+  - **Hábito e Frequência:** máximo de 60 pontos.
+- **Evolução da Reputação do Recebedor:** nenhuma conta de destino é bloqueada apenas por ser recém-aberta (pois um familiar que acabou de abrir conta é legítimo). Ela só entra em quarentena quando acumula comportamento típico de conta laranja:
 
 ```mermaid
 stateDiagram-v2
     [*] --> NORMAL
-    NORMAL --> OBSERVACAO: conta com menos de 7 dias, PJ com menos de 30 ou Pix exorbitante
-    OBSERVACAO --> NORMAL: 7 dias sem gatilho
-    OBSERVACAO --> QUARENTENA: C5 com 5 ou mais pagadores, C6 ou C7 de 50% ou mais
-    QUARENTENA --> OBSERVACAO: expira em 72 h
-    [*] --> MARCADA: carga do BC ou feedback
-    MARCADA --> NORMAL: expira em 5 anos
-    note right of OBSERVACAO
-        Só pontua (C2, C5)
-    end note
-    note right of QUARENTENA
-        E3 rejeita pagador sem H2
-    end note
-    note right of MARCADA
-        E2 rejeita, exceto devolução
-    end note
+    NORMAL --> OBSERVACAO: Conta recém-aberta (menos de 7 dias PF ou 30 dias PJ) ou Pix de valor atípico
+    OBSERVACAO --> NORMAL: 7 dias sem novos alertas
+    OBSERVACAO --> QUARENTENA: Recebe de 5 ou mais pagadores em 24h, repassa metade do saldo em 1h ou metade das análises falha
+    QUARENTENA --> OBSERVACAO: Expira após 72 horas
+    [*] --> MARCADA: Denúncia de fraude confirmada ou lista regulatória do Banco Central
+    MARCADA --> NORMAL: Expira após 5 anos
 ```
-
-</details>
 
 ---
 
 ## Como as regras viram decisão
 
-**Ordem:** (1) validação e idempotência → (2) eliminatórias E1 a E6 → (3) soma dos pontos com teto por família → (4) faixa de valor → (5) pisos → (6) gravação.
+A decisão segue uma ordem simples e previsível:
 
-A decisão fica numa função única (`domain.engine.decide`):
+1. **Violou alguma regra eliminatória obrigatória** (casa de apostas, conta marcada por fraude, quarentena para recebedor desconhecido ou excesso de limite noturno/aparelho novo) $\rightarrow$ **Reprovado (`rejected`)**;
+2. **Pontuação atingiu ou superou o limite de reprovação da faixa de valor** $\rightarrow$ **Reprovado (`rejected`)**;
+3. **Pontuação atingiu o limite de segundo fator OU acionou um alerta crítico obrigatório** $\rightarrow$ **Segundo Fator (`two_factor_required`)**;
+4. **Pontuação baixa e sem alertas críticos** $\rightarrow$ **Aprovado (`approved`)**.
 
-1. alguma eliminatória dispara → `rejected`;
-2. score ≥ corte de reprovar da faixa → `rejected`;
-3. score ≥ corte de 2FA **ou** algum piso ativo → `two_factor_required`;
-4. senão → `approved`.
+| Faixa de Valor | Valor da Transação | Exige 2FA a partir de | Reprova a partir de |
+| :---: | :--- | :---: | :---: |
+| **Faixa A** | Até R$ 200,00 | 45 pontos | 85 pontos |
+| **Faixa B** | De R$ 200,01 a R$ 1.000,00 | 35 pontos | 75 pontos |
+| **Faixa C** | De R$ 1.000,01 a R$ 5.000,00 | 30 pontos | 65 pontos |
+| **Faixa D** | Acima de R$ 5.000,00 | 25 pontos | 55 pontos |
 
-| Faixa | Valor (limites inclusivos) | 2FA a partir de | Reprova a partir de |
-| --- | --- | --- | --- |
-| A | até R$ 200 | 45 | 85 |
-| B | R$ 200,01 a R$ 1.000 | 35 | 75 |
-| C | R$ 1.000,01 a R$ 5.000 | 30 | 65 |
-| D | acima de R$ 5.000 | 25 | 55 |
+> Quanto maior o valor do Pix, menor a pontuação necessária para exigir confirmação ou bloquear — protegendo as economias do idoso sem criar atrito em transferências pequenas do dia a dia.
 
-A fronteira desce quando o valor sobe: o custo da fraude cresce com o valor, e o da fricção é quase constante. Os cortes de R$ 200 e R$ 1.000 seguem limites do BC. O de R$ 5.000 e os pontos são hipóteses.
+**Situações que exigem Segundo Fator obrigatório (mesmo com pontuação baixa):**
+- Aparelho novo ou não reconhecido enviando acima de R$ 200,00;
+- Uso de relógio inteligente (*smartwatch*) acima de R$ 200,00 (tela reduzida dificulta conferir os dados do recebedor);
+- Transferência pequena de teste seguida de transferência alta para o mesmo recebedor em até 72 horas;
+- Ligação telefônica em andamento ou aplicativo de acesso remoto ativo durante o Pix;
+- Sinais de digitação robótica ou automação no computador/navegador;
+- Depósito recém-recebido e transferido quase integralmente em menos de 30 minutos para um recebedor novo;
+- Deslocamento geográfico em velocidade incompatível com o último Pix;
+- **Convergência de sinais moderados:** 3 ou mais alertas médios simultâneos na mesma transação;
+- **Valor alto para desconhecido:** qualquer Pix acima de R$ 5.000,00 enviado pela primeira vez a um recebedor novo.
 
-**Quando pede 2FA mesmo com pouca pontuação (pisos):**
-- E5, K2, C8, R1, R2, F3 e G2;
-- **X1 Convergência:** 3 ou mais sinais fracos, entre 10 e 19 pontos cada (sinais de 5 pontos não contam);
-- **X2 Valor alto a destino novo:** faixa D com C1.
+**Exemplos práticos do dia a dia:**
+- **Aluguel mensal recorrente (Aprovado):** Pix de R$ 1.200,00 enviado pela 4ª vez ao mesmo locador em meses diferentes recebe bônus de confiança (−25 pontos), zerando o risco.
+- **Pix noturno alto para desconhecido (Reprovado):** Pix de R$ 1.500,00 às 22h15 para alguém que nunca recebeu antes barra imediatamente no limite noturno.
+- **Pix diurno para conta recém-aberta (Segundo Fator):** Pix de R$ 1.500,00 às 14h00 para uma conta aberta há 5 dias soma pontos de recebedor novo + conta jovem e solicita confirmação por código.
+- **Pix durante ligação telefônica (Segundo Fator):** mesmo que o valor seja pequeno, o alerta de chamada ativa retém a operação e pergunta se há alguém orientando o cliente pelo telefone.
 
-**Exemplos** (cobertos por testes unitários):
-- Pix de R$ 1.500 às 22:15 para destino sem pré-cadastro: a E4 dispara e o Pix é `rejected`, com `rules_fired: [E4]`.
-- O mesmo Pix às 14:00, cliente em padrão, para conta aberta há 5 dias: C1 (+15) e C2 (+30) somam 45, acima do corte de 30 da faixa C. Resultado: `two_factor_required`.
-- O aluguel de R$ 1.200 pago ao mesmo destino pela 4ª vez: C1 não dispara, a H2 tira 25 e o score fica em 0. Resultado: `approved`.
-- Ligação em andamento num Pix pequeno para destino conhecido: score baixo, mas o piso da R1 leva a `two_factor_required`.
+### Como funciona o Segundo Fator e a Proteção Familiar (QI Tech)
 
-**Tipo de desafio e fricção** (na `metadata` quando há 2FA):
-- `challenge_type` diz **para quem vai o token** da QI Tech: `CUSTOMER_TOKEN_2FA` (padrão, o próprio cliente) ou `TRUSTED_CONTACT_APPROVAL` (o Contato de Confiança). O segundo vale quando R1 (ligação), C1 e F2 convergem e o Contato deu aceite (`approval_consent_at`).
-- `friction_script_key` diz ao app qual pergunta fazer antes do 2FA, pela ordem R1, F3, C6, C5: `CALL_COACHING_CHECK`, `PASSTHROUGH_CHECK`, `MULE_DESTINATION_CHECK`; nos demais casos, `CONFIRM_IDENTITY`.
-- O motor devolve só a chave e uma faixa qualitativa, nunca o limiar ou o número.
+Quando um Pix exige confirmação adicional (`two_factor_required`), o motor define automaticamente **quem deve aprovar** e **qual orientação exibir na tela**:
 
-**Segundo fator pela QI Tech (2FA v2).** O motor só decide; quem fala com a QI é o `PixSecondFactorController`, no papel da `transaction-api`:
-
-1. `POST /pix/transaction/{id}/second_factor` cria a transferência na QI (`POST /account/{account_key}/pix_transfer`) com `tfa_info` (CPF do aprovador e `sms` ou `email`). A QI responde `pending_2fa_approval` e envia o token. O motor grava `qi_pix_transfer_key`, `qi_account_key`, o status da QI e o prazo de 5 minutos na análise.
-2. O aprovador precisa combinar com o desafio. Em `CUSTOMER_TOKEN_2FA` tem de ser o próprio pagador; em `TRUSTED_CONTACT_APPROVAL`, nunca o pagador. Na QI, ele também precisa estar cadastrado como aprovador da conta.
-3. `PUT .../second_factor/token` primeiro aplica a resposta de fricção. "Sim, há alguém no telefone" escala o desafio sem chamar a QI: vira `TRUSTED_CONTACT_APPROVAL` se há Contato consentido, ou `rejected` se não há.
-4. Se não houve escalada, o token é validado na QI (`validate_token`):
-   - `sent` ou `pending` aprovam o Pix e gravam `second_factor_at`;
-   - token errado ou expirado mantém o Pix retido;
-   - a 5ª tentativa errada faz a QI rejeitar a transferência, e o Pix vira `rejected` (regra `QI2FA` na auditoria).
-5. `PATCH .../second_factor/token` pede um novo token (`resend_token`). O prazo de 5 minutos reinicia, mas a contagem de tentativas, não.
-
-A escalada nunca relaxa: um `rejected` não vira `approved`. Para quem integra o motor por fora, o reenvio do mesmo `id` com `second_factor_passed: true` continua valendo. Esse campo e o `friction_answer` não entram no `request_hash`.
-
-**Aviso ao Contato de Confiança.** Com `rejected` ou `two_factor_required` e Contato cadastrado, o motor grava o aviso na `notification_outbox` com `transaction_id = NULL` e `analysis_id` preenchido, na mesma transação da análise. O `outbox-worker` do banco faz a entrega.
+1. **Escolha de quem aprova o código:**
+   - **Próprio Cliente:** padrão para confirmações comuns de identidade;
+   - **Familiar de Confiança (2FA Social):** acionado automaticamente quando o idoso está em ligação telefônica enviando valor que esvazia sua reserva para um desconhecido (ou quando ele responde na tela que está sendo guiado por alguém na chamada).
+2. **Pergunta Educativa Antes do Código:**
+   - Antes de digitar a senha/token, o aplicativo faz uma pergunta direta compatível com o risco detectado (ex.: *"Há alguém no telefone pedindo este Pix agora?"* ou *"Alguém pediu para você transferir dinheiro de outro banco para cá hoje?"*).
+   - Se o cliente responder **"Sim"**, o sistema protege a conta imediatamente: transfere a aprovação para o Familiar de Confiança (se cadastrado) ou cancela o Pix sem nem precisar validar o token.
+3. **Validação na QI Tech:**
+   - O código de 6 dígitos tem validade de 5 minutos (podendo ser reenviado);
+   - Se aprovado, o Pix é liberado; se houver 5 tentativas incorretas seguidas, a operação é reprovada definitivamente.
+4. **Aviso Automático à Família:** sempre que um Pix é retido para segundo fator ou bloqueado por risco, um aviso é registrado na fila de notificações (`notification_outbox`) para alertar os Contatos de Confiança da conta.
 
 ---
 
