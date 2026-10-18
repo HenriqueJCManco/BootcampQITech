@@ -211,3 +211,17 @@ def test_feedback_is_recorded_for_existing_analysis():
 
     missing = api_request("POST", "/pix/feedback", {"transaction_id": "nope", "is_fraud": False})
     assert missing.response_status == 404
+
+
+def test_pix_to_registered_bet_is_rejected_by_e6():
+    payload = pix_payload(create_payer(with_contact=False), channel="celular")
+    payload["destination_account"]["document_number"] = "99.000.001/0001-01"
+
+    response = post_pix(payload)
+
+    assert response.response_status == 201, response.response_json
+    assert response.response_json["status"] == "rejected"
+    assert set(rules(response)) == {"E6"}
+
+    payload = {**payload, "id": str(uuid4()), "type": "refund"}
+    assert "E6" not in rules(post_pix(payload))

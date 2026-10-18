@@ -61,6 +61,7 @@ class PixAnalysisModel(Base):
         ),
         CheckConstraint("friction_answer IN ('YES', 'NO', 'SKIP')", name="chk_pix_analysis_friction_answer"),
         CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="chk_pix_analysis_geolocation"),
+        CheckConstraint("geo_accuracy_m IS NULL OR geo_accuracy_m >= 0", name="chk_pix_analysis_geo_accuracy"),
         Index("ix_pix_analysis_source_date", "source_hash", text("transaction_date DESC")),
         Index("ix_pix_analysis_destination_date", "destination_key", text("transaction_date DESC")),
         Index(
@@ -94,6 +95,7 @@ class PixAnalysisModel(Base):
     channel = Column(String(20))
     latitude = Column(Float)
     longitude = Column(Float)
+    geo_accuracy_m = Column(Integer)
     metadata_ = Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     second_factor_at = Column(DateTime(timezone=True))
     challenge_type = Column(String(30))
@@ -198,6 +200,21 @@ class DestinationReputationModel(Base):
     payers_24h = Column(Integer, nullable=False, server_default="0")
     forwarded_ratio_1h = Column(Numeric(5, 4), nullable=False, server_default="0")
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class BetDestinationModel(Base):
+    __tablename__ = "bet_destination"
+    __table_args__ = (
+        CheckConstraint("cnpj ~ '^[0-9]{14}$'", name="chk_bet_destination_cnpj"),
+        Index("ix_bet_destination_active", "cnpj", postgresql_where=text("active")),
+        {"schema": FRAUD_SCHEMA},
+    )
+
+    cnpj = Column(CHAR(14), primary_key=True)
+    razao_social = Column(String(255), nullable=False)
+    source = Column(String(100), nullable=False)
+    active = Column(Boolean, nullable=False, server_default=text("true"))
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class OfPayerProfileModel(Base):

@@ -1,22 +1,5 @@
 {
   "type": "object",
-  "definitions": {
-    "owner": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string", "maxLength": 255 }
-      },
-      "additionalProperties": false
-    },
-    "account_key": {
-      "type": "string",
-      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-    },
-    "document_number": {
-      "type": "string",
-      "pattern": "^[0-9./-]{11,18}$"
-    }
-  },
   "properties": {
     "id": {
       "type": "string",
@@ -35,21 +18,35 @@
     },
     "type": {
       "type": "string",
-      "enum": ["payment", "refund"]
+      "enum": [
+        "payment",
+        "refund"
+      ]
     },
     "second_factor_passed": {
       "type": "boolean"
     },
     "friction_answer": {
       "type": "string",
-      "enum": ["YES", "NO", "SKIP"]
+      "enum": [
+        "YES",
+        "NO",
+        "SKIP"
+      ]
     },
     "source": {
       "type": "object",
       "properties": {
         "channel": {
           "type": "string",
-          "enum": ["internet", "celular", "computador", "tablet", "relogio", "app"]
+          "enum": [
+            "internet",
+            "celular",
+            "computador",
+            "tablet",
+            "relogio",
+            "app"
+          ]
         },
         "device_id": {
           "type": "string",
@@ -59,10 +56,25 @@
         "geolocation": {
           "type": "object",
           "properties": {
-            "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
-            "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+            "latitude": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "longitude": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            "accuracy_m": {
+              "type": "number",
+              "minimum": 0
+            }
           },
-          "required": ["latitude", "longitude"],
+          "required": [
+            "latitude",
+            "longitude"
+          ],
           "additionalProperties": false
         },
         "remote_access_detected": {
@@ -74,9 +86,16 @@
         "interaction": {
           "type": "object",
           "properties": {
-            "is_robotic_movement": { "type": "boolean" },
-            "typing_cadence_std_ms": { "type": "number", "minimum": 0 },
-            "session_idle_then_burst": { "type": "boolean" }
+            "is_robotic_movement": {
+              "type": "boolean"
+            },
+            "typing_cadence_std_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "session_idle_then_burst": {
+              "type": "boolean"
+            }
           }
         }
       },
@@ -85,31 +104,97 @@
     "source_account": {
       "type": "object",
       "properties": {
-        "account_key": { "$ref": "#/definitions/account_key" },
-        "document_number": { "$ref": "#/definitions/document_number" },
-        "participant": { "type": "string", "minLength": 1, "maxLength": 20 },
-        "branch": { "type": "string", "minLength": 1, "maxLength": 10 },
-        "number": { "type": "string", "minLength": 1, "maxLength": 30 },
-        "has_trusted_contact": { "type": "boolean" },
-        "owner": { "$ref": "#/definitions/owner" }
+        "account_key": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "document_number": {
+          "type": "string",
+          "pattern": "^[0-9./-]{11,18}$"
+        },
+        "participant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "number": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "has_trusted_contact": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "additionalProperties": false
+        }
       },
-      "required": ["document_number"],
+      "required": [
+        "document_number"
+      ],
       "additionalProperties": false
     },
     "destination_account": {
       "type": "object",
       "properties": {
-        "account_key": { "$ref": "#/definitions/account_key" },
-        "document_number": { "$ref": "#/definitions/document_number" },
-        "participant": { "type": "string", "minLength": 1, "maxLength": 20 },
-        "branch": { "type": "string", "minLength": 1, "maxLength": 10 },
-        "number": { "type": "string", "minLength": 1, "maxLength": 30 },
-        "owner": { "$ref": "#/definitions/owner" }
+        "account_key": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "document_number": {
+          "type": "string",
+          "pattern": "^[0-9./-]{11,18}$"
+        },
+        "participant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "number": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "owner": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "additionalProperties": false
+        }
       },
-      "required": ["document_number"],
+      "required": [
+        "document_number"
+      ],
       "additionalProperties": false
     }
   },
-  "required": ["id", "amount", "transaction_date", "source_account", "destination_account"],
+  "required": [
+    "id",
+    "amount",
+    "transaction_date",
+    "source_account",
+    "destination_account"
+  ],
   "additionalProperties": false
 }

@@ -78,6 +78,7 @@ class AvaliarPixController(BaseController):
             channel=pix.channel,
             latitude=pix.geolocation.latitude if pix.geolocation is not None else None,
             longitude=pix.geolocation.longitude if pix.geolocation is not None else None,
+            geo_accuracy_m=self._accuracy(pix),
         )
 
         if not is_new:
@@ -216,7 +217,8 @@ class AvaliarPixController(BaseController):
 
         geolocation = None
         if source.get("geolocation") is not None:
-            geolocation = Geolocation(source["geolocation"]["latitude"], source["geolocation"]["longitude"])
+            point = source["geolocation"]
+            geolocation = Geolocation(point["latitude"], point["longitude"], point.get("accuracy_m"))
         interaction = None
         if source.get("interaction") is not None:
             raw = source["interaction"]
@@ -250,6 +252,12 @@ class AvaliarPixController(BaseController):
             has_trusted_contact=source_account.get("has_trusted_contact"),
             interaction=interaction,
         )
+
+    @staticmethod
+    def _accuracy(pix: PixRequest) -> int | None:
+        if pix.geolocation is None or pix.geolocation.accuracy_m is None:
+            return None
+        return round(pix.geolocation.accuracy_m)
 
     def _lock_payer(self, source_hash: str) -> None:
         try:

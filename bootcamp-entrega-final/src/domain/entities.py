@@ -24,6 +24,7 @@ TRUSTED_CONTACT_APPROVAL = "TRUSTED_CONTACT_APPROVAL"
 class Geolocation:
     latitude: float
     longitude: float
+    accuracy_m: float | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,7 @@ class DestinationSnapshot:
     document: str
     account_created_at: datetime | None = None
     merchant_mcc: str | None = None
+    bet_registered: bool = False
     flags: tuple[DestinationFlag, ...] = ()
     reputation: DestinationReputation = field(default_factory=DestinationReputation)
 
@@ -184,6 +186,7 @@ class Decision:
     notify_trusted_contact: bool = False
     customer_message_key: str | None = None
     flag_changes: list[FlagChange] = field(default_factory=list)
+    family_caps_applied: dict = field(default_factory=dict)
 
     def metadata(self, context: "EvaluationContext") -> dict:
         reputation = context.destination.reputation
@@ -204,6 +207,8 @@ class Decision:
             "customer_message_key": self.customer_message_key,
             "inputs_missing": self.inputs_missing,
         }
+        if self.family_caps_applied:
+            metadata["family_caps_applied"] = self.family_caps_applied
         if context.pix.interaction is not None:
             metadata["inputs"] = {"interaction": context.pix.interaction.raw}
         if self.status == TWO_FACTOR_REQUIRED:

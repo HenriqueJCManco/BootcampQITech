@@ -54,6 +54,7 @@ def evaluate(context: EvaluationContext, config: EngineConfig) -> Decision:
         hit
         for hit in (
             eliminatory.e1_vault(facts),
+            eliminatory.e6_bets_ban(facts),
             eliminatory.e2_flagged_destination(facts, destination_status),
             eliminatory.e3_quarantine(facts, destination_status, trusted),
             eliminatory.e4_night_limit(facts, payer_class),
@@ -75,19 +76,15 @@ def evaluate(context: EvaluationContext, config: EngineConfig) -> Decision:
 
     blocking = [hit for hit in eliminatory_hits if hit.eliminatory]
     if blocking:
-        decision.status = REJECTED
+        decision.status = decide(0, band, [], blocked=True)
         decision.rules_fired = blocking
     else:
         hits = eliminatory_hits + _score_hits(facts, destination_status, trusted, trusted_evidence)
         hits, escalated_status = channel.r2_escalation(hits, config)
         decision.rules_fired = hits
-        decision.score = max(0, sum(hit.points for hit in hits))
+        decision.score, decision.family_caps_applied = capped_score(hits, config)
         decision.floor_applied = _floors(hits, band["faixa"], config)
-
-        if decision.score >= band["reprova"]:
-            decision.status = REJECTED
-        elif decision.score >= band["dois_fatores"] or decision.floor_applied:
-            decision.status = TWO_FACTOR_REQUIRED
+        decision.status = decide(decision.score, band, decision.floor_applied)
 
         if escalated_status == REJECTED or (escalated_status and decision.status == APPROVED):
             decision.status = escalated_status
@@ -134,11 +131,48 @@ def _score_hits(facts: Facts, destination_status: str, trusted: bool, trusted_ev
     return [hit for hit in hits if hit is not None]
 
 
+def decide(score: int, band: dict, floors: list[str], blocked: bool = False) -> str:
+    if blocked or score >= band["reprova"]:
+        return REJECTED
+    if score >= band["dois_fatores"] or floors:
+        return TWO_FACTOR_REQUIRED
+    return APPROVED
+
+
+def capped_score(hits: list[RuleHit], config: EngineConfig) -> tuple[int, dict]:
+    families = config.params.get("familias", {})
+    if not config.flag("ENABLE_FAMILY_CAPS") or not families:
+        return max(0, sum(hit.points for hit in hits)), {}
+
+    family_of = {code: name for name, family in families.items() for code in family["regras"]}
+    positive_by_family: dict[str, int] = {}
+    uncapped = 0
+    for hit in hits:
+        family = family_of.get(hit.code)
+        if family is None or hit.points <= 0:
+            uncapped += hit.points
+        else:
+            positive_by_family[family] = positive_by_family.get(family, 0) + hit.points
+
+    applied = {}
+    total = uncapped
+    for family, points in positive_by_family.items():
+        ceiling = families[family]["teto"]
+        if points > ceiling:
+            applied[family] = {"raw": points, "cap": ceiling}
+        total += min(points, ceiling)
+    return max(0, total), applied
+
+
 def _floors(hits: list[RuleHit], value_band: str, config: EngineConfig) -> list[str]:
     floors = [hit.code for hit in hits if hit.floor]
 
     x1 = config.floor("X1")
-    weak = [hit.code for hit in hits if 0 < hit.points < x1["pontos_max_sinal_fraco"]]
+    weak = [
+        hit.code
+        for hit in hits
+        if x1.get("pontos_min_sinal_fraco", 1) <= hit.points < x1["pontos_max_sinal_fraco"]
+    ]
     if len(weak) >= x1["min_sinais"]:
         floors.append("X1")
 

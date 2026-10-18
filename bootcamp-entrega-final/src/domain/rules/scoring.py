@@ -62,30 +62,39 @@ def g1_distance_from_usual(facts: Facts) -> RuleHit | None:
     return RuleHit("G1", band["pontos"], {"distance_km": round(distance, 1)})
 
 
+def _precise(geolocation, max_accuracy_m: float) -> bool:
+    return geolocation.accuracy_m is None or geolocation.accuracy_m <= max_accuracy_m
+
+
 def g2_impossible_travel(facts: Facts) -> RuleHit | None:
     location = facts.pix.geolocation
-    if location is None:
+    params = facts.config.rule("G2")
+    if location is None or not _precise(location, params["precisao_max_m"]):
         return None
+
+    oldest = facts.now - timedelta(hours=params["idade_max_horas"])
     previous = [
-        pix for pix in facts.payer.history if pix.geolocation is not None and pix.transaction_date <= facts.now
+        pix
+        for pix in facts.payer.history
+        if pix.geolocation is not None
+        and oldest <= pix.transaction_date <= facts.now
+        and _precise(pix.geolocation, params["precisao_max_m"])
     ]
     if not previous:
         return None
 
     last = max(previous, key=lambda pix: pix.transaction_date)
-    params = facts.config.rule("G2")
     distance = haversine_km(
         last.geolocation.latitude, last.geolocation.longitude, location.latitude, location.longitude
     )
-    if distance < params["distancia_min_km"]:
-        return None
+    seconds = max((facts.now - last.transaction_date).total_seconds(), params["intervalo_min_s"])
+    speed = distance / (seconds / 3600)
 
-    hours = (facts.now - last.transaction_date).total_seconds() / 3600
-    speed = distance / hours if hours > 0 else float("inf")
-    if speed < params["velocidade_kmh"]:
-        return None
-    evidence = {"distance_km": round(distance, 1), "speed_kmh": None if hours == 0 else round(speed)}
-    return RuleHit("G2", params["pontos"], evidence)
+    for level in params["niveis"]:
+        if distance >= level["distancia_min_km"] and speed >= level["velocidade_kmh"]:
+            evidence = {"distance_km": round(distance, 1), "speed_kmh": round(speed)}
+            return RuleHit("G2", level["pontos"], evidence, floor=level.get("piso", False))
+    return None
 
 
 def c1_new_beneficiary(facts: Facts) -> RuleHit | None:

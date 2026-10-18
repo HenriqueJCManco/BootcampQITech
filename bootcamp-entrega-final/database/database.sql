@@ -138,6 +138,7 @@ CREATE TABLE fraude.pix_analysis (
     channel VARCHAR(20),
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
+    geo_accuracy_m INTEGER,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     second_factor_at TIMESTAMPTZ,
     challenge_type VARCHAR(30),
@@ -158,7 +159,8 @@ CREATE TABLE fraude.pix_analysis (
     CONSTRAINT chk_pix_analysis_challenge_type
         CHECK (challenge_type IN ('BIOMETRIC_2FA', 'TRUSTED_CONTACT_APPROVAL')),
     CONSTRAINT chk_pix_analysis_friction_answer CHECK (friction_answer IN ('YES', 'NO', 'SKIP')),
-    CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL))
+    CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL)),
+    CONSTRAINT chk_pix_analysis_geo_accuracy CHECK (geo_accuracy_m IS NULL OR geo_accuracy_m >= 0)
 );
 CREATE INDEX ix_pix_analysis_source_date
     ON fraude.pix_analysis (source_hash, transaction_date DESC);
@@ -227,6 +229,23 @@ CREATE TABLE fraude.destination_reputation (
     CONSTRAINT chk_destination_reputation_ratio
         CHECK (forwarded_ratio_1h >= 0 AND forwarded_ratio_1h <= 1)
 );
+
+CREATE TABLE fraude.bet_destination (
+    cnpj CHAR(14) PRIMARY KEY,
+    razao_social VARCHAR(255) NOT NULL,
+    source VARCHAR(100) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_bet_destination_cnpj CHECK (cnpj ~ '^[0-9]{14}$')
+);
+CREATE INDEX ix_bet_destination_active
+    ON fraude.bet_destination (cnpj)
+    WHERE active;
+
+INSERT INTO fraude.bet_destination (cnpj, razao_social, source) VALUES
+    ('99000001000101', 'APOSTA FICTICIA UM LTDA', 'seed_demo'),
+    ('99000002000148', 'BET FICTICIA DOIS LTDA', 'seed_demo'),
+    ('99000003000192', 'CASSINO FICTICIO TRES LTDA', 'seed_demo');
 
 CREATE TABLE fraude.of_payer_profile (
     account_id BIGINT PRIMARY KEY REFERENCES account(id) ON DELETE CASCADE,
@@ -324,7 +343,15 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
                 "min_pontos": 5,
                 "faixas": [{"acima_km": 500, "pontos": 25}, {"acima_km": 100, "pontos": 15}]
             },
-            "G2": {"velocidade_kmh": 800, "distancia_min_km": 100, "pontos": 35},
+            "G2": {
+                "intervalo_min_s": 60,
+                "precisao_max_m": 5000,
+                "idade_max_horas": 6,
+                "niveis": [
+                    {"distancia_min_km": 100, "velocidade_kmh": 800, "pontos": 35, "piso": true},
+                    {"distancia_min_km": 20, "velocidade_kmh": 300, "pontos": 35, "piso": true}
+                ]
+            },
             "G4": {"canais": ["celular", "tablet"], "pontos": 5},
             "K1": {"janela_dias": 90, "min_transacoes": 5, "proporcao_max": 0.10, "pontos": 10},
             "K2": {"canal": "relogio", "acima_centavos": 20000},
@@ -377,7 +404,7 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
             "H2": {"min_pix": 3, "meses_distintos": 3, "janela_meses": 3, "tolerancia": 0.2, "pontos": -25}
         },
         "pisos": {
-            "X1": {"min_sinais": 3, "pontos_max_sinal_fraco": 20},
+            "X1": {"min_sinais": 3, "pontos_min_sinal_fraco": 10, "pontos_max_sinal_fraco": 20},
             "X2": {"faixa": "D"}
         },
         "reputacao": {
@@ -414,7 +441,15 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
             "precedencia": ["R1", "F3", "C6", "C5"],
             "resposta_sim_sem_contato": "rejected"
         },
+        "familias": {
+            "aparelho": {"regras": ["D1", "D2", "D3"], "teto": 45},
+            "geografia": {"regras": ["G1", "G2", "G4"], "teto": 40},
+            "destino": {"regras": ["C1", "C2", "C5", "C6", "C7", "C8"], "teto": 55},
+            "comportamento": {"regras": ["K1", "P1", "P2", "M1", "M2", "V1", "V2"], "teto": 60}
+        },
         "flags": {
+            "ENABLE_BETS_BAN": true,
+            "ENABLE_FAMILY_CAPS": true,
             "ENABLE_BCB_587_RULES": true,
             "APPLY_NIGHT_LIMIT_PJ": false,
             "ENABLE_MEI_AS_PF": true

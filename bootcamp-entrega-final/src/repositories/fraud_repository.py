@@ -23,6 +23,7 @@ from domain import (
 )
 from models import (
     Account,
+    BetDestinationModel,
     BankTransaction,
     BlockedMCC,
     Customer,
@@ -181,7 +182,7 @@ class FraudRepository:
     def _to_past_pix(analysis: PixAnalysisModel, has_transaction: bool) -> PastPix:
         geolocation = None
         if analysis.latitude is not None:
-            geolocation = Geolocation(analysis.latitude, analysis.longitude)
+            geolocation = Geolocation(analysis.latitude, analysis.longitude, analysis.geo_accuracy_m)
         standalone_approved = analysis.source_account_id is None and analysis.status == APPROVED
         return PastPix(
             transaction_date=analysis.transaction_date,
@@ -252,11 +253,18 @@ class FraudRepository:
             .filter(digits_only(Merchant.document_number) == digits_only(literal(document)))
             .scalar()
         )
+        bet_registered = self.session.query(
+            exists().where(
+                BetDestinationModel.cnpj == func.regexp_replace(literal(document), "[^0-9]", "", "g"),
+                BetDestinationModel.active.is_(True),
+            )
+        ).scalar()
         return DestinationSnapshot(
             destination_key=destination_key,
             document=document,
             account_created_at=account.created_at if account is not None else None,
             merchant_mcc=merchant_mcc,
+            bet_registered=bet_registered,
             flags=tuple(DestinationFlag(flag.status, flag.starts_at, flag.expires_at) for flag in flags),
             reputation=self._to_reputation(reputation),
         )

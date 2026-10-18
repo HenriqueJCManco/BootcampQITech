@@ -9,6 +9,7 @@ from models.banking import (
     TrustedContact,
 )
 from models.fraud import (
+    BetDestinationModel,
     DestinationFlag,
     DestinationFlagModel,
     DestinationReputation,

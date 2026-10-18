@@ -12,6 +12,14 @@ def e1_vault(facts: Facts) -> RuleHit | None:
     return RuleHit("E1", evidence={"mcc": mcc}, eliminatory=True)
 
 
+def e6_bets_ban(facts: Facts) -> RuleHit | None:
+    if not facts.config.flag("ENABLE_BETS_BAN"):
+        return None
+    if not facts.destination.bet_registered or facts.pix.type == REFUND:
+        return None
+    return RuleHit("E6", evidence={"destination_registry": "bet_destination"}, eliminatory=True)
+
+
 def e2_flagged_destination(facts: Facts, destination_status: str) -> RuleHit | None:
     if not facts.config.flag("ENABLE_BCB_587_RULES"):
         return None
