@@ -19,7 +19,7 @@ Antifraude de Pix para um banco de público 60+ (aposentados e pensionistas, ren
 
 1. [Como o motor de decisão funciona](#como-o-motor-de-decisão-funciona)
 2. [Rotas e Contrato da API](#rotas-e-contrato-da-api)
-3. [Regras do Motor Antifraude (25 Regras)](#regras)
+3. [Regras do Motor Antifraude (24 Regras)](#regras)
 4. [Como as regras viram decisão e 2FA via QI Tech](#como-as-regras-viram-decisão)
 5. [Modelo de Dados e Valores Reais do Banco](#modelo-de-dados)
 6. [Como rodar, testar e Mapa dos 141 Testes](#como-rodar-e-testar)
@@ -142,7 +142,7 @@ flowchart LR
 
 * **Camada de Segurança e Entrada (`middlewares` + `resources`):** confere a credencial interna da requisição, valida se todos os campos enviados respeitam o formato esperado e formata a resposta final.
 * **Camada de Orquestração (`controllers`):** coordena o passo a passo — pede os dados ao banco, entrega tudo pronto para o cérebro antifraude decidir, salva o resultado e, quando necessário, aciona o envio de token na QI Tech.
-* **Cérebro de Decisão Antifraude (`domain`):** contém toda a inteligência das 25 regras, cálculo estatístico de hábito do idoso e classificação de risco. Não faz chamadas de rede nem consultas SQL, o que garante velocidade em milissegundos e 100% de cobertura em testes unitários.
+* **Cérebro de Decisão Antifraude (`domain`):** contém toda a inteligência das 24 regras, cálculo estatístico de hábito do idoso e classificação de risco. Não faz chamadas de rede nem consultas SQL, o que garante velocidade em milissegundos e 100% de cobertura em testes unitários.
 * **Camada de Dados (`repositories` + `models`):** único ponto que conversa com o PostgreSQL. Lê os dados cadastrais e de extrato do banco (sem nunca alterar saldo) e grava todas as evidências e decisões no ambiente antifraude.
 
 ### Garantias de Produto e Engenharia
@@ -248,12 +248,11 @@ Todas as rotas, menos `/` e `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN
 
 | Regra | Lógica | Parâmetros | Por quê |
 | --- | --- | --- | --- |
-| **E1 Cofre Antivícios** | O MCC do CNPJ de destino (tabela `merchant`) está nos `blocked_mcc` da conta | padrão `7995` (apostas) | Garantia herdada do Banco 60+: o dinheiro não vai para a aposta que o cliente bloqueou. Quem recebe Pix não informa MCC, então lemos o cadastro do CNPJ |
+| **E1 Cofre Antivícios** | O MCC do CNPJ de destino (tabela `merchant`) está nos `blocked_mcc` da conta | padrão `7995` (apostas/bets) | Garantia herdada do Banco 60+: o dinheiro não vai para casas de apostas ou categorias que o cliente bloqueou (exceto devoluções `refund`). Quem recebe Pix não informa MCC, então lemos o cadastro do CNPJ |
 | **E2 Destino marcado** | Destino com marcação `MARCADA` ativa e `type` diferente de `refund` | validade de 5 anos; flag `ENABLE_BCB_587_RULES` | Res. BCB 587 (publicada em 18/09/2026). Adotamos antes da vigência, com data de expiração na tabela |
 | **E3 Quarentena** | Destino em `QUARENTENA` e pagador sem beneficiário de confiança (H2) | até 72 h | Espelho interno do bloqueio cautelar de até 72 h do BC (hipótese: o do BC é do lado recebedor) |
 | **E4 Limite noturno** | PF (11 dígitos) ou MEI, das 20h às 6h (fuso `America/Sao_Paulo`), acima do teto, para destino sem pré-cadastro | teto R$ 1.000; pré-cadastro = Pix aprovado ao mesmo destino há 24 h ou mais; PJ só com `APPLY_NIGHT_LIMIT_PJ` | Res. BCB 142/2021. Sequestro-relâmpago acontece à noite, e o 60+ raramente opera nesse horário |
 | **E5 Aparelho não conhecido** | Aparelho desconhecido ou em maturação: soma do dia acima do limite reprova; Pix acima do limite vira piso de 2FA | R$ 1.000/dia reprova; R$ 200/Pix piso de 2FA | Res. BCB 403/2024. Reprovamos só o acumulado, porque o neto pode ter dado um celular novo ao avô |
-| **E6 Bets** | CNPJ de destino ativo em `fraude.bet_destination`, exceto `refund` | flag `ENABLE_BETS_BAN` | Proibição de Pix para bets. O CNPJ nunca entra na `evidence`; devoluções passam |
 
 **Reconhecimento do MEI (E4).** É feito em memória, sem consulta externa, sobre o nome do titular de um documento de 14 dígitos:
 
@@ -638,7 +637,7 @@ erDiagram
 | `fraude.device_seen` | Vínculo `device_id × source_hash` (`first_seen`, `last_seen`, `tx_count`) | `PK(device_id, source_hash)` | `CHECK (tx_count >= 1)`, `CHECK (last_seen >= first_seen)`, `ix_device_seen_device_first_seen`, `ix_device_seen_device_last_seen` |
 | `fraude.destination_flag` | Marcações cautelares/regulatórias (`OBSERVACAO`, `QUARENTENA`, `MARCADA`) | `PK(id)` | `CHECK (expires_at > starts_at)`, `ix_destination_flag_key_expires` |
 | `fraude.destination_reputation` | Contadores atômicos de reputação do destino (`n = n + 1`) | `PK(destination_key)` | `CHECK (rejected_count + two_factor_count <= analyses_count)`, `CHECK (forwarded_ratio_1h BETWEEN 0 AND 1)` |
-| `fraude.bet_destination` | Lista regulatória de CNPJs de casas de apostas (regra `E6`) | `PK(cnpj)` | `CHECK (cnpj ~ '^[0-9]{14}$')`, índice parcial `WHERE active` |
+| `fraude.bet_destination` | Lista regulatória auxiliar de CNPJs de casas de apostas | `PK(cnpj)` | `CHECK (cnpj ~ '^[0-9]{14}$')`, índice parcial `WHERE active` |
 | `fraude.of_payer_profile` | Renda e saldo externos carregados de forma assíncrona via Open Finance | `PK(account_id)` | `CHECK (other_income_cents >= 0 AND other_balance_cents >= 0)` |
 | `fraude.pix_feedback` | Rótulos pós-transação (`is_fraud`, `reason`) para calibração e backtest | `PK(id)`, `FK(transaction_id -> pix_analysis.pix_id)` | `ix_pix_feedback_transaction` |
 | `fraude.pix_shadow_result` | Pontuação de modelos *Machine Learning* em modo sombra (*shadow mode*) | `PK(id)`, `FK(analysis_id)` | `ix_pix_shadow_result_analysis` |
@@ -648,7 +647,7 @@ erDiagram
 Em cada chamada `POST /pix/transaction`, o [`FraudRepository`](./src/repositories/fraud_repository.py) consulta e atualiza as seguintes tabelas nos schemas `public` e `fraude`:
 
 1. **`fraude.engine_config` (Leitura):** Carrega a versão ativa onde `active_from <= transaction_date` (`version = 1`, `active_from = '2026-01-01T00:00:00Z'`), contendo todas as faixas (`A` até R$ 200, `B` até R$ 1.000, `C` até R$ 5.000, `D` acima de R$ 5.000), pesos e flags.
-2. **`fraude.bet_destination` (Leitura — Regra `E6`):** Verifica se o CNPJ do destinatário consta ativo na lista regulatória de apostas:
+2. **`public.merchant` + `public.blocked_mcc` (Leitura — Regra `E1` Cofre Antivícios e Bets):** Verifica o MCC do CNPJ do destinatário (como `7995` para casas de apostas, bloqueado por padrão na abertura da conta) e catálogos auxiliares de apostas (`fraude.bet_destination`):
    | `cnpj` | `razao_social` | `source` | `active` |
    | :--- | :--- | :--- | :---: |
    | `99000001000101` | `APOSTA FICTICIA UM LTDA` | `seed_demo` | `true` |
@@ -727,7 +726,7 @@ python scripts/backtest.py
 | Suíte / Arquivo | Qtd. Testes | Base Acionada | O que é verificado |
 | :--- | :---: | :---: | :--- |
 | [`tests/unit/test_rules_catalog.py`](./tests/unit/test_rules_catalog.py) | `34` | Memória (`conftest.py` lê seed de `database.sql`) | Cobertura unitária exaustiva de todas as regras `E1..E5`, `D1..D3`, `G1..G2`, `C2..C8`, `P1..P2`, `M1..M2`, `V2`, `O1`, `K1`, `R1`, `X2`, `F1..F3`, transições de reputação e funções de identidade/estatística |
-| [`tests/unit/test_engine_improvements.py`](./tests/unit/test_engine_improvements.py) | `24` | Memória | Fronteiras inclusivas das faixas `A..D`, função `decide`, banimento de bets (`E6`), níveis de teletransporte (`G2`), teto por família (`capped_score`) e piso `X1` |
+| [`tests/unit/test_engine_improvements.py`](./tests/unit/test_engine_improvements.py) | `24` | Memória | Fronteiras inclusivas das faixas `A..D`, função `decide`, banimento de bets, níveis de teletransporte (`G2`), teto por família (`capped_score`) e piso `X1` |
 | [`tests/unit/test_pix_validation.py`](./tests/unit/test_pix_validation.py) | `14` | Memória | JSON Schema `post_pix_transaction.json`, mapeamento de erros `AFP`, normalização do alias `app` $\to$ `celular` e invariância do `request_hash` no 2FA |
 | [`tests/unit/test_fraud_engine.py`](./tests/unit/test_fraud_engine.py) | `12` | Memória | P95 resistente a outlier, limite noturno (`E4`), aluguel recorrente (`H2`), teste+drenagem (`C8`), rajada (`V1`), 2FA Social (`TRUSTED_CONTACT_APPROVAL`) e reconhecimento de MEI |
 | [`tests/unit/test_qitech_connector.py`](./tests/unit/test_qitech_connector.py) | `11` | Memória (`QITechTwoFactorMock`) | Conversão de centavos para reais, abertura de transferência 2FA v2 (`pending_2fa_approval`), validação de token, expiração, reenvio, recusa na 5ª tentativa e falhas de rede |
@@ -786,7 +785,7 @@ A tabela abaixo detalha exatamente quantas linhas são inseridas no PostgreSQL d
 | `public.merchant` | **`1`** | **`600`** | Estabelecimentos comerciais com CNPJ e MCC (`7995` apostas e serviços diversos) |
 | `fraude.destination_flag` | **`1`** | **`608`** | Marcações `OBSERVACAO`, `QUARENTENA` e `MARCADA` (seed + geradas pelo motor) |
 | `fraude.pix_feedback` | **`1`** | **`600`** | Rótulos enviados via `POST /pix/feedback` (`is_fraud` e tipologia do golpe/legítimo) |
-| `fraude.bet_destination` | **`96`** *(3 por ciclo × 32)* | **`600`** *(3 seed + 597 gerados)* | Lista regulatória de CNPJs de casas de apostas (regra `E6`) |
+| `fraude.bet_destination` | **`96`** *(3 por ciclo × 32)* | **`600`** *(3 seed + 597 gerados)* | Lista auxiliar de CNPJs de casas de apostas |
 | `fraude.engine_config` | **`32`** *(1 por ciclo × 32)* | **`1`** | Configuração ativa (`version = 1`) carregada por `database.sql` |
 | `fraude.of_payer_profile` | **`0`** *(testado em memória)* | **`600`** | Perfis de renda e saldo externos do Open Finance |
 | `fraude.pix_shadow_result` | **`0`** | **`600`** | Scores do modelo em modo sombra (`shadow-baseline-sintetico-v0`) |
@@ -810,12 +809,12 @@ E 120 golpes ou bloqueios:
 | Pix em `two_factor_required` (todos) | entre 2% e 5% | **18,8% — fora da meta** |
 | Legítimos reprovados | o menor possível | **0 de 480** |
 | Legítimos com 2FA | o menor possível | 21,2% |
-| `rejected` por eliminatória | só regras previstas | E2, E3, E4, E5 e E6, todas em golpes ou bets |
+| `rejected` por eliminatória | só regras previstas | E1, E2, E3, E4 e E5, todas em golpes ou bets |
 | Valor fraudulento contido | — | **97,4%** (R$ 139,4 mil de R$ 143,0 mil) |
 
 | Tipologia | Interceptados | Principal regra |
 | --- | --- | --- |
-| Falsa central, sequestro-relâmpago, mão fantasma, mula, destino marcado, bets | 100% | R1, E4, E5, E3, E2, E6 |
+| Falsa central, sequestro-relâmpago, mão fantasma, mula, destino marcado, bets | 100% | R1, E4, E5, E3, E2, E1 |
 | Robô no desktop (aparelho conhecido) e bot no `internet` | 100% | R2 com escalada (20 de 20), sem falso positivo nos 10 legítimos no desktop |
 | Teste e drenagem | 50% dos Pix, 99,8% do valor | C8 pega a drenagem; o Pix de teste passa, por desenho |
 | Fracionamento | 33% | M2 só dispara no terceiro Pix, por desenho |
