@@ -1,46 +1,40 @@
-<<<<<<< HEAD
-# BANCO 60+ | Core Bancário & Motor Antifraude Pix Seguro 60+
-=======
-# Pix Seguro 60+
->>>>>>> dd3a26cccfde9cdbed8f9d44aa646efbc8b42bca
+# Pix Seguro 60+ | Core Bancário & Motor Antifraude Pix (BANCO 60+)
 
 **Integrantes:** Isadora de Francisco, Henrique Manco e Vitor Robusti — Hackathon QI Tech 2026 · motor v0.1 (`engine_config` versão 1)
 
-<<<<<<< HEAD
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_16-336791.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Pytest](https://img.shields.io/badge/Tests-123%20Passed%20(100%25%20Domain%20Cov)-success.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
+[![Docker](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.org/)
+[![Pytest](https://img.shields.io/badge/Tests-142%20Passed%20(100%25%20Domain%20Cov)-success.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![SLA](https://img.shields.io/badge/Latency%20P50-38.4ms%20(SLA%20%3C%20300ms)-brightgreen.svg)](./docs/politica-resiliencia-sla-antifraude.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
-> **Documento Base:** RFC: BANCO 60+, com saldo protegido, Cofre Antivícios, Contato de Confiança e Motor Antifraude Pix Seguro 60+  
-> **Autores da RFC:** Isadora de Francisco, Henrique Manco e Viitor Robusti  
-=======
 Antifraude de Pix para um banco de público 60+ (aposentados e pensionistas, renda estável, pouca fluência digital). A fricção só aparece onde há dúvida: aprovar é o padrão, 2FA é o meio-termo e reprovar exige risco claro.
 
-> Tudo que não vem da pesquisa do time está marcado como **hipótese**. Os limiares se ancoram em limites reais do Banco Central, mas precisam de calibração (ver [Resultado do backtest](#resultado-do-backtest)). A API bancária sobre a qual o motor roda está descrita em [docs/banco-60.md](docs/banco-60.md).
->>>>>>> dd3a26cccfde9cdbed8f9d44aa646efbc8b42bca
+> Tudo que não vem da pesquisa do time está marcado como **hipótese**. Os limiares se ancoram em limites reais do Banco Central, mas precisam de calibração (ver [Resultado do backtest](#resultado-do-backtest)). A API bancária sobre a qual o motor roda está descrita em [docs/banco-60.md](docs/banco-60.md) e a apresentação executiva do produto está em [docs/apresentacao-comercial-produto.md](docs/apresentacao-comercial-produto.md).
+
+---
+
+## Sumário
+
+1. [Como o motor de decisão funciona](#como-o-motor-de-decisão-funciona)
+2. [Rotas e Contrato da API](#rotas-e-contrato-da-api)
+3. [Regras do Motor Antifraude (26 Regras)](#regras)
+4. [Como as regras viram decisão e 2FA via QI Tech](#como-as-regras-viram-decisão)
+5. [Modelo de Dados e Valores Reais do Banco](#modelo-de-dados)
+6. [Tempo Gasto em Todo o Processo da API (Benchmark Real)](#tempo-gasto-em-todo-o-processo-da-api-do-motor-benchmark-real)
+7. [Como rodar, testar e Mapa dos 142 Testes](#como-rodar-e-testar)
+8. [Resultado do backtest](#resultado-do-backtest)
+9. [Códigos de erro (`AFP` e `BNK`)](#códigos-de-erro)
+10. [Estrutura do Projeto](#estrutura-do-projeto)
+11. [Premissas e fora do escopo](#premissas-e-fora-do-escopo)
+
+---
 
 ## Como o motor de decisão funciona
 
-<<<<<<< HEAD
-## Sumário
-1. [Contextualização e Proposta do Projeto](#1-contextualização-e-proposta-do-projeto)
-2. [As Seis Garantias Fundamentais](#2-as-seis-garantias-fundamentais)
-3. [Arquitetura da Solução e Decisões Técnicas](#3-arquitetura-da-solução-e-decisões-técnicas)
-4. [Modelo de Dados (PostgreSQL — Schemas `public` e `fraude`)](#4-modelo-de-dados-postgresql)
-5. [Passo a Passo de Instalação e Execução](#5-passo-a-passo-de-instalação-e-execução)
-6. [Execução dos Testes Automatizados e Cobertura (123 Testes)](#6-execução-dos-testes-automatizados)
-7. [Catálogo de Endpoints da API (Core Bancário + Antifraude Pix)](#7-catálogo-de-endpoints-da-api)
-8. [Exemplos Práticos de Uso](#8-exemplos-práticos-de-uso)
-9. [Matriz de Códigos de Erro (`BNK` e `AFP`)](#9-matriz-de-códigos-de-erro-bnk-e-afp)
-10. [Motor Antifraude Pix Seguro 60+ (Regras, Banco de Dados e Telemetria)](#10-motor-antifraude-pix-seguro-60-regras-banco-de-dados-e-telemetria)
-11. [Estrutura do Projeto](#11-estrutura-do-projeto)
-=======
 O motor recebe o Pix **antes de o dinheiro sair** e responde `approved`, `two_factor_required` ou `rejected`. Tudo acontece em **uma passagem síncrona, sem chamada externa e sem analista**. Ele roda sobre o banco do Banco 60+ (RFC anterior) como o **passo 4b** do funil de transferência: depois do Cofre Antivícios e antes da trava das contas.
->>>>>>> dd3a26cccfde9cdbed8f9d44aa646efbc8b42bca
 
 ### Onde o motor entra no Banco 60+ (passo 4b) e o 2FA
 
@@ -160,7 +154,11 @@ O repositório é o único ponto que fala com o banco. O motor só lê as tabela
 5. **Histórico completo.** Cada Pix fica gravado com decisão, pontos e a evidência numérica de cada regra.
 6. **Motivo claro sem ensinar o golpista.** O status é simples. Os motivos ficam na `metadata`, que só a `transaction-api` lê (com `INTERNAL-TOKEN`). O app recebe apenas a `customer_message_key`.
 
-### Rotas
+---
+
+## Rotas e Contrato da API
+
+### Rotas do Motor Antifraude Pix (`/pix/*`)
 
 | Método | Caminho | O que faz |
 | --- | --- | --- |
@@ -172,175 +170,25 @@ O repositório é o único ponto que fala com o banco. O motor só lê as tabela
 | `PATCH` | `/pix/transaction/{id}/second_factor/token` | Pede à QI Tech um novo token (reinicia os 5 minutos) |
 | `GET` | `/health_check` | Diz se está de pé (`204`) |
 
-<<<<<<< HEAD
-A suíte automatizada conta com **123 testes (100% de aprovação e 0 warnings)**, cobrindo **100% do domínio de regras antifraude (`src/domain/`)**, validações de contrato JSON Schema, fluxos de segundo fator (2FA Biométrico e Social), *Transactional Outbox* e cenários de concorrência massiva multi-thread no banco de dados.
+### Rotas do Core Bancário Banco 60+ ([docs/banco-60.md](docs/banco-60.md))
 
-### Executar a suíte de testes via Docker (Recomendado):
-Não é necessário instalar Python na máquina hospedeira:
-
-```bash
-docker compose --profile test run --rm test
-```
-
-> **Resultado esperado:** `123 passed in ~9.9s` (100% de sucesso).
-
-### Executar localmente com Python e Relatório de Cobertura / Benchmark:
-```powershell
-# Criação e ativação do ambiente virtual
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# Instalação das dependências de teste
-pip install -r requirements-dev.txt
-
-# Execução dos 123 testes + cobertura de 100% do domínio antifraude
-pytest --cov=src/domain --cov-report=term-missing
-
-# Execução do benchmark de latência etapa por etapa da API do motor
-python scripts/benchmark_telemetry.py
-
-# Inspeção das tabelas e linhas atuais do PostgreSQL
-python scripts/inspect_db.py
-```
-
----
-
-## 7. Catálogo de Endpoints da API
-
-Todas as rotas (exceto `/` e `/health_check`) exigem o cabeçalho de autenticação interna comparado em tempo constante (`hmac.compare_digest`):
-```http
-INTERNAL-TOKEN: default_token
-```
-
-| Método | Rota | Cabeçalhos Obrigatórios | Descrição | Status Sucesso |
-| :--- | :--- | :--- | :--- | :---: |
+| Método | Caminho | Cabeçalhos Obrigatórios | O que faz | Status |
+| --- | --- | --- | --- | :---: |
 | `GET` | `/` | — | Identificação da API | `200` |
-| `GET` | `/health_check` | — | Checagem de saúde da aplicação | `204` |
 | `POST` | `/customer` | `INTERNAL-TOKEN` | Cadastra cliente PF ou PJ | `201` |
 | `GET` | `/customer/{customer_key}` | `INTERNAL-TOKEN` | Consulta cliente por chave UUID | `200` |
-| `POST` | `/account` | `INTERNAL-TOKEN` | Cria conta (saldo 0 e MCC 7995 bloqueado) | `201` |
+| `POST` | `/account` | `INTERNAL-TOKEN` | Cria conta (saldo 0 e MCC `7995` bloqueado por padrão) | `201` |
 | `GET` | `/account/{account_key}` | `INTERNAL-TOKEN` | Consulta saldo, limites e MCCs bloqueados | `200` |
-| `PUT` | `/account/{account_key}/blocked_mcc` | `INTERNAL-TOKEN` | Atualiza lista de MCCs bloqueados do Cofre | `200` |
-| `POST` | `/account/{account_key}/trusted_contact` | `INTERNAL-TOKEN` | Cadastra contato de confiança (máx. 2) | `201` |
-| `POST` | `/account/{account_key}/deposit` | `INTERNAL-TOKEN`, `Idempotency-Key` | Realiza depósito (em centavos) | `201` / `200` |
-| `POST` | `/account/{account_key}/purchase` | `INTERNAL-TOKEN`, `Idempotency-Key` | Realiza compra com cartão (valida Cofre) | `201` / `200` |
-| `POST` | `/transfer` | `INTERNAL-TOKEN`, `Idempotency-Key` | Transfere valores com tarifa de R$ 1,00 | `201` / `200` |
+| `PUT` | `/account/{account_key}/blocked_mcc` | `INTERNAL-TOKEN` | Atualiza lista de MCCs bloqueados do Cofre Antivícios | `200` |
+| `POST` | `/account/{account_key}/trusted_contact` | `INTERNAL-TOKEN` | Cadastra Contato de Confiança (máx. 2 por conta) | `201` |
+| `POST` | `/account/{account_key}/deposit` | `INTERNAL-TOKEN`, `Idempotency-Key` | Realiza depósito em centavos | `201` / `200` |
+| `POST` | `/account/{account_key}/purchase` | `INTERNAL-TOKEN`, `Idempotency-Key` | Realiza compra com cartão (valida Cofre Antivícios) | `201` / `200` |
+| `POST` | `/transfer` | `INTERNAL-TOKEN`, `Idempotency-Key` | Transfere valores com tarifa visível de R$ 1,00 | `201` / `200` |
 | `GET` | `/account/{account_key}/statement` | `INTERNAL-TOKEN` | Extrato paginado (`limit`, `page`) | `200` |
-| `POST` | `/pix/transaction` | `INTERNAL-TOKEN` | Avalia Pix no Motor Antifraude 60+ (e processa 2FA em replay) | `201` / `200` |
-| `GET` | `/pix/transaction/{id}` | `INTERNAL-TOKEN` | Consulta resultado e metadados de uma análise Pix | `200` |
-| `POST` | `/pix/feedback` | `INTERNAL-TOKEN` | Registra feedback de fraude/legítimo sobre um Pix avaliado | `201` |
 
----
-
-## 8. Exemplos Práticos de Uso
-
-### 1. Cadastrar um Cliente (com CPF ou CNPJ formatado)
-```bash
-curl -X POST http://localhost:3000/customer \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Sebastião da Silva",
-    "email": "sebastiao@exemplo.com",
-    "document_number": "529.982.247-25"
-  }'
-```
-
-### 2. Abrir uma Conta
-```bash
-curl -X POST http://localhost:3000/account \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customer_key": "<UUID_DO_CLIENTE>",
-    "transfer_limit_cents": 100000
-  }'
-```
-
-### 3. Cadastrar Contato de Confiança (Máximo 2)
-```bash
-curl -X POST http://localhost:3000/account/<UUID_DA_CONTA>/trusted_contact \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Mariana da Silva (Filha)",
-    "channel": "EMAIL",
-    "address": "mariana.filha@exemplo.com"
-  }'
-```
-
-### 4. Realizar Depósito Idempotente (R$ 500,00)
-```bash
-curl -X POST http://localhost:3000/account/<UUID_DA_CONTA>/deposit \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "Idempotency-Key: dep-001-abc" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "amount_cents": 50000
-  }'
-```
-
-### 5. Realizar Transferência com Tarifa (R$ 100,00 + R$ 1,00 de tarifa)
-```bash
-curl -X POST http://localhost:3000/transfer \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "Idempotency-Key: trf-001-xyz" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "from_account_key": "<UUID_CONTA_ORIGEM>",
-    "to_account_key": "<UUID_CONTA_DESTINO>",
-    "amount_cents": 10000
-  }'
-```
-
-### 6. Consultar Extrato Paginado
-```bash
-curl -X GET "http://localhost:3000/account/<UUID_DA_CONTA>/statement?limit=10&page=0" \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-### 7. Avaliar Transação Pix no Motor Antifraude (`POST /pix/transaction`)
-```bash
-curl -X POST http://localhost:3000/pix/transaction \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "pix-demo-001",
-    "amount": 30000,
-    "transaction_date": "2026-10-18T14:00:00-03:00",
-    "type": "payment",
-    "source": {
-      "channel": "app",
-      "device_id": "device-maria-01",
-      "geolocation": {"latitude": -23.5505, "longitude": -46.6333, "accuracy_m": 12.0},
-      "remote_access_detected": false,
-      "call_in_progress": true
-    },
-    "source_account": {
-      "document_number": "529.982.247-25",
-      "has_trusted_contact": true,
-      "owner": {"name": "Sebastião da Silva"}
-    },
-    "destination_account": {
-      "document_number": "111.444.777-35",
-      "participant": "60701190",
-      "branch": "0001",
-      "number": "12345678",
-      "owner": {"name": "Destinatário"}
-    }
-  }'
-```
-
----
-
-## 9. Matriz de Códigos de Erro (`BNK` e `AFP`)
-
-Todas as respostas de erro retornam um envelope padronizado contendo `title`, `description`, `translation` (em português), `code`, `request_id` e lista de `errors`:
-=======
-Todas as rotas, menos `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN`. Ausente ou errado, a resposta é `403 AFP000002`, e a comparação é feita em tempo constante. **Reprovar um Pix não é erro**: a resposta é `201` com `status: rejected`.
+Todas as rotas, menos `/` e `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN` (`default_token` no ambiente local). Ausente ou errado nas rotas `/pix/*`, a resposta é `403 AFP000002`, e a comparação é feita em tempo constante (`hmac.compare_digest`). **Reprovar um Pix não é erro**: a resposta é `201` com `status: rejected`.
 
 **Entrada.** Valores em centavos (inteiro ≥ 1) e `transaction_date` com fuso. Campos opcionais ausentes desligam a regra correspondente e entram em `metadata.inputs_missing`; a requisição não falha. `source.channel` aceita `internet`, `celular`, `computador`, `tablet` e `relogio`. O alias `app` é gravado como `celular`.
->>>>>>> dd3a26cccfde9cdbed8f9d44aa646efbc8b42bca
 
 ```json
 {
@@ -362,224 +210,6 @@ Todas as rotas, menos `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN`. Aus
 }
 ```
 
-<<<<<<< HEAD
-### 9.1 Códigos do Core Bancário (`BNK`)
-
-| HTTP Status | Código BNK | Cenário de Ocorrência |
-| :---: | :---: | :--- |
-| `400` | `BNK000001` | Corpo, cabeçalho ou parâmetro de consulta fora do formato esperado |
-| `403` | `BNK000002` | `INTERNAL-TOKEN` ausente ou incorreto |
-| `400` | `BNK000011` | Cabeçalho `Idempotency-Key` ausente em operação de dinheiro |
-| `409` | `BNK000012` | Mesma chave de idempotência reenviada com corpo diferente |
-| `404` | `BNK000404` | Rota ou recurso HTTP inexistente |
-| `409` | `BNK001001` | Documento (CPF/CNPJ) ou e-mail já cadastrado |
-| `422` | `BNK001002` | CPF ou CNPJ com dígitos verificadores inválidos |
-| `404` | `BNK001003` | Cliente não encontrado |
-| `404` | `BNK002001` | Conta não encontrada |
-| `409` | `BNK002002` | Cliente já possui conta cadastrada |
-| `400` | `BNK002003` | Limite por transferência menor que 1 centavo |
-| `400` | `BNK002004` | Lista de MCCs fora do formato (deve conter 4 dígitos por MCC) |
-| `409` | `BNK003001` | Limite de contatos de confiança atingido (máximo de 2 por conta) |
-| `409` | `BNK003002` | Contato de confiança com mesmo endereço já cadastrado na conta |
-| `409` | `BNK004001` | Saldo insuficiente (considera valor + tarifa na transferência) |
-| `422` | `BNK004002` | Transferência para a mesma conta (origem igual ao destino) |
-| `422` | `BNK004003` | Valor da transferência excede o limite configurado na conta |
-| `422` | `BNK004004` | Operação bloqueada pelo Cofre Antivícios (MCC 7995 / apostas) |
-| `422` | `BNK004005` | CNPJ do lojista com dígitos verificadores inválidos |
-| `400` | `BNK004006` | Valor monetário menor que 1 centavo |
-| `503` | `BNK004007` | Timeout ao aguardar trava de linha no banco de dados |
-
-### 9.2 Códigos do Motor Antifraude Pix (`AFP`)
-
-| HTTP Status | Código AFP | Cenário de Ocorrência |
-| :---: | :---: | :--- |
-| `400` | `AFP000001` | Corpo, cabeçalho ou parâmetro da requisição Pix fora do schema esperado |
-| `403` | `AFP000002` | Cabeçalho `INTERNAL-TOKEN` ausente ou inválido nas rotas `/pix/*` |
-| `404` | `AFP000003` | Nenhuma análise Pix encontrada para o `id` consultado |
-| `409` | `AFP000004` | Conflito de idempotência: mesmo `id` de Pix reenviado com payload diferente |
-| `422` | `AFP000005` | Dígitos verificadores inválidos em `source_account.document_number` ou `destination_account.document_number` |
-| `400` | `AFP000006` | `transaction_date` sem fuso horário (timezone) ou no futuro (`> 5 min`) |
-| `422` | `AFP000007` | `source.channel` fora dos canais aceitos (`internet`, `celular`, `computador`, `tablet`, `relogio`, `app`) |
-| `400` | `AFP000008` | `amount` inválido (não inteiro, booleano ou menor que 1 centavo) |
-| `503` | `AFP000009` | Timeout (`> 2s`) ao aguardar `pg_advisory_xact_lock` do pagador concorrente |
-
----
-
-## 10. Motor Antifraude Pix Seguro 60+ (Regras, Banco de Dados e Telemetria)
-
-O **Motor Antifraude Pix Seguro 60+** foi projetado com **Arquitetura Hexagonal / Domínio Puro**: a função [`evaluate(context, config)`](./src/domain/engine.py) opera 100% em memória sobre *snapshots* imutáveis (`@dataclass(frozen=True)`), enquanto todos os pesos, janelas temporais, tetos de família e *feature flags* são parametrizados no banco na tabela `fraude.engine_config`.
-
-### 10.1 Catálogo das 26 Regras, Tetos por Família e Pisos de 2FA
-
-| Família / Teto | Código | Regra | Efeito / Pontuação (`engine_config v1`) |
-| :--- | :---: | :--- | :--- |
-| **Eliminatórias** *(Rejeição Imediata)* | `E1` | Cofre Antivícios por MCC | `REJECTED` se o `merchant_mcc` do destinatário estiver bloqueado na conta |
-| | `E2` | Destino Marcado (`MARCADA`) | `REJECTED` em pagamentos (exceto `refund`) sob flag BCB 587 |
-| | `E3` | Quarentena Policial (`QUARENTENA`) | `REJECTED` se o destinatário não for beneficiário de confiança (`H2`) |
-| | `E4` | Limite Noturno PF e MEI (`20h–06h`) | `REJECTED` acima de R$ 1.000,00 para destinatário não cadastrado há $\ge 24\text{h}$ |
-| | `E5` | Aparelho Desconhecido / Maturando | `REJECTED` se soma diária no aparelho $> \text{R\$ } 1.000$; **Piso de 2FA** se Pix $> \text{R\$ } 200$ |
-| | `E6` | Banimento Regulatório de *Bets* | `REJECTED` se CNPJ destino constar ativo em `fraude.bet_destination` (exceto `refund`) |
-| **Aparelho** *(Teto: 45 pts)* | `D1` | Estágio de Maturação do Aparelho | `+40` (desconhecido) ou `+20` (maturando $< 24\text{h}$) |
-| | `D2` | Aparelho Compartilhado | `+35` se $\ge 3$ documentos distintos usaram o aparelho em 7 dias |
-| | `D3` | *Cold Start* (Primeiro Pix) | `+5` quando pagador não possui histórico anterior (suprime `D1` e `E5`) |
-| **Geografia** *(Teto: 40 pts)* | `G1` | Distância da Mediana Habitual (90d) | `+25` ($> 500\text{ km}$) ou `+15` ($> 100\text{ km}$) |
-| | `G2` | Deslocamento Impossível (Teletransporte) | `+35` e **Piso de 2FA** ($\ge 100\text{ km}$ a $\ge 800\text{ km/h}$ ou $\ge 20\text{ km}$ a $\ge 300\text{ km/h}$) |
-| | `G4` | Geolocalização Ausente em Mobile | `+5` em `celular` ou `tablet` sem coordenadas GPS |
-| **Destino** *(Teto: 55 pts)* | `C1` | Novo Beneficiário | `+15` se nunca houve Pix aprovado e liquidado para a `destination_key` |
-| | `C2` | Idade da Conta Destino | `+30` ($< 7\text{d}$), `+20` ($< 30\text{d}$) ou `+5` ($< 90\text{d}$) |
-| | `C5` | Muitos Pagadores em 24h (Conta Mula) | `+25` ($\ge 5$ pagadores) ou `+15` ($\ge 3$ pagadores) + script `MULE_DESTINATION_CHECK` |
-| | `C6` | Repasse Rápido em 1h (*Fast-Forward*) | `+25` se o destino repassou $\ge 50\%$ do que recebeu na última hora |
-| | `C7` | Reputação Endógena Suspeita | `+30` ($\ge 50\%$ suspeitas) ou `+15` ($\ge 30\%$ suspeitas) com $\ge 4$ análises |
-| | `C8` | Pix Teste Seguido de Drenagem (72h) | `+30` e **Piso de 2FA** (teste $\le \text{R\$ } 10$ seguido de Pix $\ge \max(\text{R\$ } 500, 20\times \text{teste})$) |
-| **Comportamento** *(Teto: 60 pts)* | `K1` | Canal Incomum (Segmento 90d) | `+10` se o segmento (`mobile`/`desktop`/`relogio`) representa $< 10\%$ do histórico |
-| | `P1` | Valor Atípico Acima do Percentil 95 | `+30` ($> 3\times \text{P95}$), `+20` ($> \text{P95}$) ou `+10` ($> \text{R\$ } 500$ sem histórico) |
-| | `P2` | Horário Incomum no Histograma | `+10` se a janela de $\pm 1\text{h}$ tem $< 5\%$ das observações históricas |
-| | `M1` | Acumulado em 24 Horas | `+20` se a soma em 24h ultrapassar $3\times$ o limiar P95 |
-| | `M2` | Fracionamento (*Smurfing* perto do Teto) | `+30` se houver $\ge 3$ Pix em 24h entre $80\%$ e $100\%$ dos tetos (R$ 200 ou R$ 1.000) |
-| | `V1` | Rajada de Pix em 10 Minutos (*Burst*) | `+40` ($\ge 5$ Pix em 10 min) ou `+25` ($\ge 3$ Pix em 10 min) |
-| | `V2` | Pulverização para Novos Destinos (1h) | `+30` se enviar para $\ge 3$ destinos inéditos na última hora |
-| **Fora do Teto** *(Risco Direto & Bônus)* | `K2` | Relógio Inteligente (*Smartwatch*) | `0 pts` e **Piso de 2FA** para Pix $> \text{R\$ } 200,00$ no canal `relogio` |
-| | `O1` | Conta Origem Recente | `+10` se a conta pagadora tiver menos de 30 dias |
-| | `R1` | Acesso Remoto ou Ligação em Curso | `+30` (acesso remoto) + `+30` (ligação ativa) + **Piso de 2FA** (`CALL_COACHING_CHECK`) |
-| | `R2` | Automação / Bot em Canal Desktop | `+40` e **Piso de 2FA**; **escala para `REJECTED`** quando combinada com `C1` ou `V1` |
-| | `F1` | Valor vs. Renda Mensal (Local + OF) | `+25` ($> 2\times$ renda 30d) ou `+15` ($> 1\times$ renda 30d) |
-| | `F2` | Drenagem de Saldo ($\ge 80\%$) | `+15` se o Pix consumir $\ge 80\%$ do saldo somado (Conta Local + Open Finance) |
-| | `F3` | Conta de Passagem (*Pass-Through* 30m) | `+30` (`+15` reforço de queda no Open Finance) + **Piso de 2FA** (`PASSTHROUGH_CHECK`) |
-| | `H2` | Beneficiário de Confiança (Recorrente) | **`-25`** ($\ge 3$ Pix em $\ge 3$ meses distintos dentro de $\pm 20\%$ da mediana, sem `C8`/marcação) |
-| **Pisos Globais** | `X1` | Convergência de Sinais Fracos | **Piso de 2FA** se $\ge 3$ regras pontuarem entre `10` e `19` pontos brutos |
-| | `X2` | Alto Valor para Novo Destinatário | **Piso de 2FA** para qualquer Pix na **Faixa D** ($> \text{R\$ } 5.000,00$) com `C1` |
-
----
-
-### 10.2 O que o Motor Puxa do Banco de Dados e Valores Reais das Tabelas
-
-Em cada chamada `POST /pix/transaction`, o [`FraudRepository`](./src/repositories/fraud_repository.py) consulta e atualiza as seguintes tabelas nos schemas `public` e `fraude`:
-
-1. **`fraude.engine_config` (Leitura):** Carrega a versão ativa onde `active_from <= transaction_date` (`version = 1`, `active_from = '2026-01-01T00:00:00Z'`), contendo todas as faixas (`A` até R$ 200, `B` até R$ 1.000, `C` até R$ 5.000, `D` acima de R$ 5.000), pesos e flags.
-2. **`fraude.bet_destination` (Leitura — Regra `E6`):** Verifica se o CNPJ do destinatário consta ativo na lista regulatória de apostas:
-   | `cnpj` | `razao_social` | `source` | `active` |
-   | :--- | :--- | :--- | :---: |
-   | `99000001000101` | `APOSTA FICTICIA UM LTDA` | `seed_demo` | `true` |
-   | `99000002000148` | `BET FICTICIA DOIS LTDA` | `seed_demo` | `true` |
-   | `99000003000192` | `CASSINO FICTICIO TRES LTDA` | `seed_demo` | `true` |
-3. **Histórico e Perfil do Pagador (Leitura — janela de 125 dias):**
-   * `fraude.pix_analysis` + `public.bank_transaction`: histórico de Pix anteriores do `source_hash` (valores, horários, coordenadas GPS, canal, `device_id` e liquidação);
-   * `public.account`, `public.blocked_mcc`, `public.trusted_contact`, `public.ledger_entry` e `fraude.of_payer_profile`: saldo atual, data de abertura da conta, MCCs bloqueados no Cofre, consentimento do Contato de Confiança (`approval_consent_at`), lançamentos contábeis (`DEPOSIT`/`TRANSFER`) e saldos/rendas externos via Open Finance.
-4. **Tabelas de Estado Pré-Calculadas (Leitura e Escrita Atômica via `ON CONFLICT DO UPDATE`):**
-   * **`fraude.destination_reputation`** (acumula análises, reprovações, 2FA, pagadores em 24h e taxa de repasse em 1h):
-     | `destination_key` (SHA-256) | `analyses_count` | `rejected_count` | `two_factor_count` | `payers_24h` | `forwarded_ratio_1h` |
-     | :--- | :---: | :---: | :---: | :---: | :---: |
-     | `f4f2c9f1b50cd3a5...f3a6a` | `60` | `56` | `2` | `1` | `0.0000` |
-     | `596639d67d941368...06f4d` | `1` | `1` | `0` | `1` | `0.0000` |
-   * **`fraude.device_seen`** (controla a primeira/última aparição de cada aparelho por pagador e compartilhamento `D2`):
-     | `device_id` | `source_hash` (SHA-256) | `first_seen` | `last_seen` | `tx_count` |
-     | :--- | :--- | :---: | :---: | :---: |
-     | `device-bench-01` | `ec8fcc450d86eb39...6528` | `2026-10-18 08:42:00Z` | `2026-10-18 08:42:03Z` | `60` |
-     | `device-headless-chrome-01` | `b217f82798b7bbd4...398d` | `2026-10-18 08:40:55Z` | `2026-10-18 08:40:55Z` | `1` |
-5. **Auditoria de Análises e Regras (`fraude.pix_analysis` e `fraude.pix_rule_result`):**
-   * Amostra de linhas reais gravadas em `fraude.pix_analysis`:
-     | `id` | `pix_id` | `status` | `score` | `value_band` | `amount_cents` | `channel` | `customer_message_key` |
-     | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-     | `106` | `PIX-HTTP-d56fb67352a84b19...` | `rejected` | `120` | `A` | `17900` (R$ 179,00) | `celular` | `BLOCKED_FOR_SAFETY` |
-     | `102` | `PIX-HTTP-052d9c3439a74ce3...` | `rejected` | `90` | `A` | `17800` (R$ 178,00) | `celular` | `BLOCKED_FOR_SAFETY` |
-   * Amostra de linhas reais gravadas em `fraude.pix_rule_result` (para `analysis_id = 106`):
-     | `id` | `analysis_id` | `rule_code` | `points` | `evidence` (JSONB) |
-     | :---: | :---: | :---: | :---: | :--- |
-     | `207` | `106` | `D1` | `20` | `{"device_stage": "maturing"}` |
-     | `208` | `106` | `C7` | `30` | `{"analyses": 59, "ratio": 0.9661}` |
-     | `209` | `106` | `V1` | `40` | `{"pix_10min": 60}` |
-     | `210` | `106` | `R1` | `30` | `{"channel": "celular", "call_in_progress": true}` |
-
----
-
-### 10.3 Tempo Gasto em Todo o Processo da API do Motor (Benchmark Real)
-
-Medição obtida com [`scripts/benchmark_telemetry.py`](./scripts/benchmark_telemetry.py) sobre 30 transações sequenciais contra o PostgreSQL:
-
-| Etapa do Processo (`AvaliarPixController`) | Mínimo (ms) | Mediana / P50 (ms) | Média (ms) | P95 (ms) | Máximo (ms) | % do Tempo (P50) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1. Normalização, Validação e Hash SHA-256** (`_normalize`, `_validate`, `_request_hash`) | `0.094` | **`0.123`** | `0.134` | `0.183` | `0.315` | **0.4%** |
-| **2. Busca de Contas Origem/Destino** (`_find_account`) | `3.400` | **`3.971`** | `5.887` | `5.855` | `55.411` | **13.1%** |
-| **3. Reserva de Idempotência** (`reserve_analysis` — `INSERT ON CONFLICT`) | `2.118` | **`2.639`** | `2.948` | `3.855` | `10.176` | **8.7%** |
-| **4. Trava por Pagador** (`_lock_payer` — `pg_advisory_xact_lock` com timeout `2s`) | `0.776` | **`1.042`** | `1.219` | `1.883` | `2.021` | **3.4%** |
-| **5. Carregamento de Snapshots** (`load_payer_snapshot`, `load_destination_snapshot`, `load_device_snapshot`) | `7.826` | **`10.809`** | `11.077` | `13.601` | `23.491` | **35.6%** |
-| **6. Avaliação Pura do Motor de Regras** (`evaluate(context, config)` — 26 regras em memória) | `0.193` | **`0.271`** | `0.478` | `0.364` | `6.721` | **0.9%** |
-| **7. Persistência, Reputação, Outbox e Commit** (`persist_analysis` + `commit`) | `9.166` | **`11.297`** | `11.251` | `12.368` | `18.951` | **37.2%** |
-| **Total Interno do Controller** (`AvaliarPixController.avaliar`) | `26.093` | **`30.354`** | `33.001` | `33.217` | `116.758` | **100%** |
-| **HTTP End-to-End (`POST /pix/transaction` — Nova Análise)** | `35.179` | **`38.369`** | `40.017` | `42.967` | `85.709` | **SLA < 300 ms (Folga de 87%)** |
-| **Replay Idempotente (`200 OK` — Mesma chave e corpo)** | `6.174` | **`7.486`** | `7.749` | `10.115` | `10.660` | **SLA < 300 ms** |
-| **Replay de Confirmação 2FA (`second_factor_passed=True`)** | `6.094` | **`8.225`** | `8.769` | `12.363` | `16.125` | **SLA < 300 ms** |
-
----
-
-### 10.4 Mapa da Suíte de Testes e Cobertura de 100% do Domínio
-
-| Suíte / Arquivo | Qtd. Testes | Base Acionada | O que é verificado |
-| :--- | :---: | :---: | :--- |
-| [`tests/unit/test_rules_catalog.py`](./tests/unit/test_rules_catalog.py) | `35` | Memória (`conftest.py` lê seed de `database.sql`) | Cobertura unitária exaustiva de todas as regras `E1..E5`, `D1..D3`, `G1..G2`, `C2..C8`, `P1..P2`, `M1..M2`, `V2`, `O1`, `K1..K2`, `R1`, `X2`, `F1..F3`, transições de reputação e funções de identidade/estatística |
-| [`tests/unit/test_engine_improvements.py`](./tests/unit/test_engine_improvements.py) | `24` | Memória | Fronteiras inclusivas das faixas `A..D`, função `decide`, banimento de bets (`E6`), níveis de teletransporte (`G2`), teto por família (`capped_score`) e piso `X1` |
-| [`tests/unit/test_pix_validation.py`](./tests/unit/test_pix_validation.py) | `14` | Memória | JSON Schema `post_pix_transaction.json`, mapeamento de erros `AFP`, normalização do alias `app` $\to$ `celular` e invariância do `request_hash` no 2FA |
-| [`tests/unit/test_fraud_engine.py`](./tests/unit/test_fraud_engine.py) | `12` | Memória | P95 resistente a outlier, limite noturno (`E4`), aluguel recorrente (`H2`), teste+drenagem (`C8`), rajada (`V1`), 2FA Social (`TRUSTED_CONTACT_APPROVAL`) e reconhecimento de MEI |
-| [`tests/unit/test_channel_rules.py`](./tests/unit/test_channel_rules.py) | `8` | Memória | Geolocalização ausente (`G4`), chamada ativa (`R1`), automação robótica desktop (`R2`) com escalada para `rejected` e mudança de segmento (`K1`) |
-| [`tests/integration/fraud/test_fraud_outbox.py`](./tests/integration/fraud/test_fraud_outbox.py) | `11` | PostgreSQL Real (`DbUtils.rollback()`) | Gravação de Pix retido na `notification_outbox`, idempotência (`201` vs `200` vs `409`), escalada de `friction_answer=YES`, aprovação com `second_factor_passed=True` e endpoint `/pix/feedback` |
-| [`tests/integration/fraud/test_fraud_scenarios.py`](./tests/integration/fraud/test_fraud_scenarios.py) | `5` | PostgreSQL Real (`DbUtils.rollback()`) | Cenários ponta a ponta: cliente rotineiro aprovado, quarentena policial (`E3`), desafio e aprovação 2FA, proteção noturna de MEI (`E4`) e bot desktop (`R2`) |
-| [`tests/integration/banking/test_bank_api.py`](./tests/integration/banking/test_bank_api.py) + [`test_healthcheck.py`](./tests/integration/test_healthcheck.py) | `14` | PostgreSQL Real (`DbUtils.rollback()`) | Operações bancárias, Cofre Antivícios em compras, concorrência multi-thread de saldo/contatos e preservação de acentuação nos erros |
-| **Total** | **123** | **100% Passando** | **100% de cobertura em todos os módulos de regras e entidades de `src/domain/`** |
-
----
-
-## 11. Estrutura do Projeto
-
-A arquitetura adota separação estrita de responsabilidades entre transporte HTTP, controle transacional, domínio puro de regras e persistência SQL:
-
-```text
-bootcamp-entrega-final/
-├── database/
-│   ├── database.sql               # Esquema DDL completo (schemas public e fraude + seed engine_config v1)
-│   └── seed_test_scenarios.sql    # Carga opcional de cenários de demonstração
-├── docs/
-│   ├── backtest-massa-sintetica.md
-│   ├── banco60_banner.jpg
-│   ├── como-o-projeto-e-organizado.md
-│   ├── motor-antifraude-ajustes.md
-│   └── politica-resiliencia-sla-antifraude.md
-├── scripts/
-│   ├── backtest.py                # Avaliação estatística sobre massa sintética rotulada
-│   ├── benchmark_telemetry.py     # Benchmark etapa por etapa da API do motor antifraude
-│   ├── inspect_db.py              # Inspeção formatada das tabelas e linhas do PostgreSQL
-│   ├── massa_sintetica.py         # Geração de massa sintética de Pix legítimos e golpes
-│   └── simulate_fraud_attacks.py  # Simulação de vetores de ataque contra a API
-├── src/
-│   ├── app.py                     # Entrypoint FastAPI e registro de rotas/middlewares
-│   ├── constants.py               # Variáveis de ambiente e configuração
-│   ├── database.py                # Engine SQLAlchemy e gerenciamento de contexto por requisição
-│   ├── connectors/                # Conectores REST externos com timeout estrito (300 ms)
-│   ├── controllers/               # Orquestração transacional (AvaliarPixController, TransactionController...)
-│   ├── domain/                    # Núcleo puro do Motor Antifraude Pix (100% em memória, 100% coberto)
-│   │   ├── config.py              # Leitura tipada de faixas, janelas, fuso horário e flags
-│   │   ├── engine.py              # Orquestrador evaluate(), decide(), capped_score() e 2FA
-│   │   ├── entities.py            # Entidades imutáveis (PixRequest, EvaluationContext, Decision...)
-│   │   ├── facts.py               # Extração de fatos derivados do histórico (P95, H2, estágio de device)
-│   │   ├── identity.py            # Hashing SHA-256 e mascaramento de documentos
-│   │   ├── payer_class.py         # Classificação PF / MEI / PJ por documento e razão social
-│   │   ├── reputation.py          # Máquina de estados do destinatário (NORMAL -> OBSERVACAO -> QUARENTENA)
-│   │   ├── statistics.py          # Percentil linear, mediana e distância geodésica de Haversine
-│   │   └── rules/                 # Regras divididas em eliminatory.py, scoring.py e channel.py
-│   ├── dtos/                      # Envelopes de saída HTTP (BankDTO, PixAnalysisDTO)
-│   ├── errors/                    # Hierarquia de exceções e catálogos BNK e AFP
-│   ├── middlewares/               # Token interno (compare_digest), log seguro, request_id e sessão DB
-│   ├── models/                    # Modelos SQLAlchemy dos schemas public (banking.py) e fraude (fraud.py)
-│   ├── repositories/              # Consultas SQL, travas FOR UPDATE / advisory lock e outbox
-│   ├── resources/                 # Adaptadores HTTP FastAPI e validação JSON Schema
-│   ├── schemas/                   # Contratos JSON de entrada (post_pix_transaction.json, etc.)
-│   └── utils/                     # Validação de dígitos de CPF/CNPJ, UUID e mapeadores de erro
-├── tests/
-│   ├── unit/                      # 93 testes unitários do motor antifraude e validações (em memória)
-│   └── integration/               # 30 testes de integração (banking, fraud, outbox e concorrência)
-├── docker-compose.yml             # Orquestração da API, PostgreSQL 16 e perfil de testes
-├── Dockerfile                     # Imagem Docker da aplicação
-└── requirements.txt               # Dependências de produção
-=======
 **Saída.** Abaixo, uma resposta real do motor na massa sintética: o terceiro Pix de um fracionamento (três Pix logo abaixo de R$ 200 para destinos novos em pouco tempo). O score 80 passa o corte de 2FA da faixa A (45), mas fica abaixo do de reprovar (85).
 
 ```json
@@ -609,8 +239,9 @@ bootcamp-entrega-final/
     "friction_params": {}
   }
 }
->>>>>>> dd3a26cccfde9cdbed8f9d44aa646efbc8b42bca
 ```
+
+---
 
 ## Regras
 
@@ -701,6 +332,8 @@ stateDiagram-v2
 
 </details>
 
+---
+
 ## Como as regras viram decisão
 
 **Ordem:** (1) validação e idempotência → (2) eliminatórias E1 a E6 → (3) soma dos pontos com teto por família → (4) faixa de valor → (5) pisos → (6) gravação.
@@ -752,6 +385,319 @@ A escalada nunca relaxa: um `rejected` não vira `approved`. Para quem integra o
 
 **Aviso ao Contato de Confiança.** Com `rejected` ou `two_factor_required` e Contato cadastrado, o motor grava o aviso na `notification_outbox` com `transaction_id = NULL` e `analysis_id` preenchido, na mesma transação da análise. O `outbox-worker` do banco faz a entrega.
 
+---
+
+## Modelo de dados
+
+O motor não tem banco próprio: usa o PostgreSQL 16 do Banco 60+ ([`database/database.sql`](./database/database.sql)), organizado em **19 tabelas relacionais** divididas em dois schemas (`public` com **9 tabelas** do Core Bancário e `fraude` com **10 tabelas** do Motor Antifraude Pix). Ele **só lê** as tabelas do banco (`customer`, `account`, `blocked_mcc`, `merchant`, `trusted_contact`, `bank_transaction`, `ledger_entry`) e **escreve** no schema `fraude` e, para avisos, na `notification_outbox`. Nunca mexe em saldo nem em extrato.
+
+### Estrutura Completa do Banco de Dados (Diagrama ER — Schemas `public` e `fraude`)
+
+```mermaid
+erDiagram
+    customer ||--o| account : "1:1 possui"
+    account ||--o{ blocked_mcc : "1:N bloqueia MCC"
+    account ||--o{ trusted_contact : "1:N cadastra contato"
+    account ||--o{ trusted_location : "1:N cadastra local"
+    account ||--o{ bank_transaction : "1:N movimenta"
+    account ||--o{ ledger_entry : "1:N escritura"
+    account ||--o| of_payer_profile : "1:1 agrega Open Finance"
+    account ||--o{ pix_analysis : "1:N avalia origem/destino"
+    bank_transaction ||--|{ ledger_entry : "1:N gera partidas"
+    bank_transaction ||--o{ notification_outbox : "1:N notifica liquidado"
+    trusted_contact ||--o{ notification_outbox : "1:N recebe aviso"
+    trusted_contact ||--o{ pix_analysis : "1:N aprova 2FA Social"
+    engine_config ||--o{ pix_analysis : "1:N parametriza"
+    pix_analysis ||--o{ pix_rule_result : "1:N grava regras"
+    pix_analysis ||--o{ notification_outbox : "1:N notifica Pix retido"
+    pix_analysis ||--o{ pix_feedback : "1:N recebe rotulo"
+    pix_analysis ||--o{ pix_shadow_result : "1:N registra score sombra"
+
+    customer {
+        bigserial id PK
+        uuid customer_key UK
+        varchar document_number UK
+        varchar email UK
+        varchar name
+        timestamptz created_at
+    }
+
+    account {
+        bigserial id PK
+        uuid account_key UK
+        bigint customer_id FK
+        bigint balance_cents "CHECK >= 0"
+        bigint transfer_limit_cents "CHECK >= 1"
+        timestamptz created_at
+    }
+
+    merchant {
+        bigserial id PK
+        varchar document_number UK
+        varchar name
+        char mcc "4 digitos"
+    }
+
+    blocked_mcc {
+        bigserial id PK
+        bigint account_id FK
+        char mcc "UK (account_id, mcc)"
+        timestamptz created_at
+    }
+
+    trusted_contact {
+        bigserial id PK
+        uuid contact_key UK
+        bigint account_id FK
+        varchar name
+        varchar channel "SMS | EMAIL"
+        varchar address
+        timestamptz approval_consent_at
+        timestamptz created_at
+    }
+
+    trusted_location {
+        bigserial id PK
+        uuid location_key UK
+        bigint account_id FK
+        varchar name
+        numeric latitude
+        numeric longitude
+        integer radius_meters "CHECK > 0"
+    }
+
+    bank_transaction {
+        bigserial id PK
+        uuid transaction_key UK
+        varchar idempotency_key UK
+        char request_hash "SHA-256 (64)"
+        varchar type "DEPOSIT | PURCHASE | TRANSFER"
+        bigint from_account_id FK
+        bigint to_account_id FK
+        bigint amount_cents "CHECK >= 1"
+        bigint fee_cents "CHECK >= 0"
+        timestamptz created_at
+    }
+
+    ledger_entry {
+        bigserial id PK
+        uuid entry_key UK
+        bigint account_id FK
+        bigint transaction_id FK
+        varchar direction "CREDIT | DEBIT"
+        varchar kind "DEPOSIT | PURCHASE | TRANSFER | FEE"
+        bigint amount_cents "CHECK >= 1"
+        char mcc
+        bigint balance_after_cents "CHECK >= 0"
+        timestamptz entry_datetime
+    }
+
+    notification_outbox {
+        bigserial id PK
+        bigint transaction_id FK "XOR analysis_id"
+        bigint analysis_id FK "XOR transaction_id"
+        bigint contact_id FK
+        varchar status "PENDING | SENT"
+        timestamptz created_at
+        timestamptz sent_at
+    }
+
+    engine_config {
+        integer version PK "CHECK >= 1"
+        jsonb params "Pesos, faixas e flags"
+        timestamptz active_from
+        timestamptz created_at
+    }
+
+    pix_analysis {
+        bigserial id PK
+        uuid analysis_key UK
+        varchar pix_id UK
+        char request_hash "SHA-256 (64)"
+        varchar status "approved | two_factor_required | rejected"
+        integer score
+        char value_band "A | B | C | D"
+        integer engine_version FK
+        varchar type "payment | refund"
+        bigint amount_cents "CHECK >= 1"
+        timestamptz transaction_date
+        bigint source_account_id FK
+        char source_hash "SHA-256 (64)"
+        varchar source_masked
+        varchar payer_class "PF | MEI | PJ"
+        bigint destination_account_id FK
+        char destination_key "SHA-256 (64)"
+        varchar destination_masked
+        varchar device_id
+        varchar channel "internet | celular | computador | tablet | relogio"
+        double latitude
+        double longitude
+        integer geo_accuracy_m
+        jsonb metadata
+        timestamptz second_factor_at
+        varchar challenge_type "CUSTOMER_TOKEN_2FA | TRUSTED_CONTACT_APPROVAL"
+        varchar friction_script_key
+        varchar friction_answer "YES | NO | SKIP"
+        uuid qi_account_key
+        uuid qi_pix_transfer_key UK
+        varchar qi_transfer_status "pending_2fa_approval | sent | pending | rejected"
+        timestamptz challenge_expires_at
+    }
+
+    pix_rule_result {
+        bigserial id PK
+        bigint analysis_id FK
+        varchar rule_code
+        integer points
+        jsonb evidence
+        timestamptz created_at
+    }
+
+    device_seen {
+        varchar device_id PK
+        char source_hash PK
+        timestamptz first_seen
+        timestamptz last_seen
+        integer tx_count "CHECK >= 1"
+    }
+
+    destination_flag {
+        bigserial id PK
+        char destination_key
+        varchar status "OBSERVACAO | QUARENTENA | MARCADA"
+        varchar reason
+        timestamptz starts_at
+        timestamptz expires_at "CHECK > starts_at"
+    }
+
+    destination_reputation {
+        char destination_key PK
+        integer analyses_count
+        integer rejected_count
+        integer two_factor_count
+        integer payers_24h
+        numeric forwarded_ratio_1h "0.0000 a 1.0000"
+        timestamptz updated_at
+    }
+
+    bet_destination {
+        char cnpj PK "14 digitos"
+        varchar razao_social
+        varchar source
+        boolean active
+    }
+
+    of_payer_profile {
+        bigint account_id PK_FK
+        bigint other_income_cents
+        bigint other_balance_cents
+        bigint other_balance_prev_cents
+        timestamptz loaded_at
+        timestamptz consent_expires_at
+    }
+
+    pix_feedback {
+        bigserial id PK
+        varchar transaction_id FK
+        boolean is_fraud
+        varchar reason
+        timestamptz created_at
+    }
+
+    pix_shadow_result {
+        bigserial id PK
+        bigint analysis_id FK
+        numeric shadow_score
+        varchar model_version
+        timestamptz created_at
+    }
+```
+
+### Dicionário das 19 Tabelas (`public` + `fraude`), Constraints e Índices
+
+| Schema.Tabela | Papel no Sistema | Chave Primária / Única | Principais Constraints (`CHECK`) e Índices |
+| :--- | :--- | :--- | :--- |
+| `public.customer` | Cadastro de clientes PF (CPF) e PJ/MEI (CNPJ) | `PK(id)`, `UK(customer_key)`, `UK(document_number)`, `UK(email)` | Documento e e-mail únicos no banco |
+| `public.account` | Conta corrente com saldo e limite em centavos | `PK(id)`, `UK(account_key)`, `UK(customer_id)` | `CHECK (balance_cents >= 0)`, `CHECK (transfer_limit_cents >= 1)` |
+| `public.merchant` | Catálogo de estabelecimentos comerciais por CNPJ e MCC | `PK(id)`, `UK(document_number)` | Usado pelo Cofre Antivícios em compras e na regra `E1` do Pix |
+| `public.blocked_mcc` | Categorias bloqueadas pelo Cofre Antivícios da conta | `PK(id)`, `UK(account_id, mcc)` | Recebe MCC `7995` (apostas/jogos) na abertura da conta |
+| `public.trusted_contact` | Até 2 Contatos de Confiança por conta e aceite de 2FA Social | `PK(id)`, `UK(contact_key)`, `UK(account_id, address)` | `CHECK (channel IN ('SMS', 'EMAIL'))`, coluna `approval_consent_at` |
+| `public.trusted_location` | Locais seguros cadastrados para a conta | `PK(id)`, `UK(location_key)` | `CHECK (radius_meters > 0)` |
+| `public.bank_transaction` | Transações financeiras idempotentes (`DEPOSIT`, `PURCHASE`, `TRANSFER`) | `PK(id)`, `UK(transaction_key)`, `UK(idempotency_key)` | `CHECK (amount_cents >= 1)`, `ix_bank_transaction_pair`, `ix_bank_transaction_destination` |
+| `public.ledger_entry` | Livro-razão contábil imutável (*append-only*) | `PK(id)`, `UK(entry_key)` | `CHECK (balance_after_cents >= 0)`, `ix_ledger_account_statement` |
+| `public.notification_outbox` | Fila transacional de avisos (movimentações ou Pix barrados/retidos) | `PK(id)`, `UK(transaction_id, contact_id)`, `UK(analysis_id, contact_id)` | `CHECK ((transaction_id IS NOT NULL) <> (analysis_id IS NOT NULL))`, `idx_outbox_blocked_pix` |
+| `fraude.engine_config` | Parâmetros versionados do motor (`faixas`, `regras`, `flags`) | `PK(version)` | `CHECK (version >= 1)`, `ix_engine_config_active_from` |
+| `fraude.pix_analysis` | Registro completo da análise Pix, fricção e desafio 2FA QI Tech | `PK(id)`, `UK(analysis_key)`, `UK(pix_id)`, `UK(qi_pix_transfer_key)` | 11 `CHECK` constraints (`status`, `value_band`, `payer_class`, `channel`, `qi_transfer_status`...) + 3 índices compostos |
+| `fraude.pix_rule_result` | Regras acionadas na análise com pontuação bruta e `evidence` JSONB | `PK(id)`, `FK(analysis_id)` | `ix_pix_rule_result_analysis`, `ix_pix_rule_result_rule_code` |
+| `fraude.device_seen` | Vínculo `device_id × source_hash` (`first_seen`, `last_seen`, `tx_count`) | `PK(device_id, source_hash)` | `CHECK (tx_count >= 1)`, `CHECK (last_seen >= first_seen)`, `ix_device_seen_device_first_seen` |
+| `fraude.destination_flag` | Marcações cautelares/regulatórias (`OBSERVACAO`, `QUARENTENA`, `MARCADA`) | `PK(id)` | `CHECK (expires_at > starts_at)`, `ix_destination_flag_key_expires` |
+| `fraude.destination_reputation` | Contadores atômicos de reputação do destino (`n = n + 1`) | `PK(destination_key)` | `CHECK (rejected_count + two_factor_count <= analyses_count)`, `CHECK (forwarded_ratio_1h BETWEEN 0 AND 1)` |
+| `fraude.bet_destination` | Lista regulatória de CNPJs de casas de apostas (regra `E6`) | `PK(cnpj)` | `CHECK (cnpj ~ '^[0-9]{14}$')`, índice parcial `WHERE active` |
+| `fraude.of_payer_profile` | Renda e saldo externos carregados de forma assíncrona via Open Finance | `PK(account_id)` | `CHECK (other_income_cents >= 0 AND other_balance_cents >= 0)` |
+| `fraude.pix_feedback` | Rótulos pós-transação (`is_fraud`, `reason`) para calibração e backtest | `PK(id)`, `FK(transaction_id -> pix_analysis.pix_id)` | `ix_pix_feedback_transaction` |
+| `fraude.pix_shadow_result` | Pontuação de modelos *Machine Learning* em modo sombra (*shadow mode*) | `PK(id)`, `FK(analysis_id)` | `ix_pix_shadow_result_analysis` |
+
+### O que o Motor Puxa do Banco de Dados e Valores Reais das Tabelas
+
+Em cada chamada `POST /pix/transaction`, o [`FraudRepository`](./src/repositories/fraud_repository.py) consulta e atualiza as seguintes tabelas nos schemas `public` e `fraude`:
+
+1. **`fraude.engine_config` (Leitura):** Carrega a versão ativa onde `active_from <= transaction_date` (`version = 1`, `active_from = '2026-01-01T00:00:00Z'`), contendo todas as faixas (`A` até R$ 200, `B` até R$ 1.000, `C` até R$ 5.000, `D` acima de R$ 5.000), pesos e flags.
+2. **`fraude.bet_destination` (Leitura — Regra `E6`):** Verifica se o CNPJ do destinatário consta ativo na lista regulatória de apostas:
+   | `cnpj` | `razao_social` | `source` | `active` |
+   | :--- | :--- | :--- | :---: |
+   | `99000001000101` | `APOSTA FICTICIA UM LTDA` | `seed_demo` | `true` |
+   | `99000002000148` | `BET FICTICIA DOIS LTDA` | `seed_demo` | `true` |
+   | `99000003000192` | `CASSINO FICTICIO TRES LTDA` | `seed_demo` | `true` |
+3. **Histórico e Perfil do Pagador (Leitura — janela de 125 dias):**
+   * `fraude.pix_analysis` + `public.bank_transaction`: histórico de Pix anteriores do `source_hash` (valores, horários, coordenadas GPS, canal, `device_id` e liquidação);
+   * `public.account`, `public.blocked_mcc`, `public.trusted_contact`, `public.ledger_entry` e `fraude.of_payer_profile`: saldo atual, data de abertura da conta, MCCs bloqueados no Cofre, consentimento do Contato de Confiança (`approval_consent_at`), lançamentos contábeis (`DEPOSIT`/`TRANSFER`) e saldos/rendas externos via Open Finance.
+4. **Tabelas de Estado Pré-Calculadas (Leitura e Escrita Atômica via `ON CONFLICT DO UPDATE`):**
+   * **`fraude.destination_reputation`** (acumula análises, reprovações, 2FA, pagadores em 24h e taxa de repasse em 1h):
+     | `destination_key` (SHA-256) | `analyses_count` | `rejected_count` | `two_factor_count` | `payers_24h` | `forwarded_ratio_1h` |
+     | :--- | :---: | :---: | :---: | :---: | :---: |
+     | `f4f2c9f1b50cd3a5...f3a6a` | `60` | `56` | `2` | `1` | `0.0000` |
+     | `596639d67d941368...06f4d` | `1` | `1` | `0` | `1` | `0.0000` |
+   * **`fraude.device_seen`** (controla a primeira/última aparição de cada aparelho por pagador e compartilhamento `D2`):
+     | `device_id` | `source_hash` (SHA-256) | `first_seen` | `last_seen` | `tx_count` |
+     | :--- | :--- | :---: | :---: | :---: |
+     | `device-bench-01` | `ec8fcc450d86eb39...6528` | `2026-10-18 08:42:00Z` | `2026-10-18 08:42:03Z` | `60` |
+     | `device-headless-chrome-01` | `b217f82798b7bbd4...398d` | `2026-10-18 08:40:55Z` | `2026-10-18 08:40:55Z` | `1` |
+5. **Auditoria de Análises e Regras (`fraude.pix_analysis` e `fraude.pix_rule_result`):**
+   * Amostra de linhas reais gravadas em `fraude.pix_analysis`:
+     | `id` | `pix_id` | `status` | `score` | `value_band` | `amount_cents` | `channel` | `customer_message_key` |
+     | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+     | `106` | `PIX-HTTP-d56fb67352a84b19...` | `rejected` | `120` | `A` | `17900` (R$ 179,00) | `celular` | `BLOCKED_FOR_SAFETY` |
+     | `102` | `PIX-HTTP-052d9c3439a74ce3...` | `rejected` | `90` | `A` | `17800` (R$ 178,00) | `celular` | `BLOCKED_FOR_SAFETY` |
+   * Amostra de linhas reais gravadas em `fraude.pix_rule_result` (para `analysis_id = 106`):
+     | `id` | `analysis_id` | `rule_code` | `points` | `evidence` (JSONB) |
+     | :---: | :---: | :---: | :---: | :--- |
+     | `207` | `106` | `D1` | `20` | `{"device_stage": "maturing"}` |
+     | `208` | `106` | `C7` | `30` | `{"analyses": 59, "ratio": 0.9661}` |
+     | `209` | `106` | `V1` | `40` | `{"pix_10min": 60}` |
+     | `210` | `106` | `R1` | `30` | `{"channel": "celular", "call_in_progress": true}` |
+
+---
+
+## Tempo Gasto em Todo o Processo da API do Motor (Benchmark Real)
+
+Medição obtida com [`scripts/benchmark_telemetry.py`](./scripts/benchmark_telemetry.py) sobre 30 transações sequenciais contra o PostgreSQL:
+
+| Etapa do Processo (`AvaliarPixController`) | Mínimo (ms) | Mediana / P50 (ms) | Média (ms) | P95 (ms) | Máximo (ms) | % do Tempo (P50) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1. Normalização, Validação e Hash SHA-256** (`_normalize`, `_validate`, `_request_hash`) | `0.094` | **`0.123`** | `0.134` | `0.183` | `0.315` | **0.4%** |
+| **2. Busca de Contas Origem/Destino** (`_find_account`) | `3.400` | **`3.971`** | `5.887` | `5.855` | `55.411` | **13.1%** |
+| **3. Reserva de Idempotência** (`reserve_analysis` — `INSERT ON CONFLICT`) | `2.118` | **`2.639`** | `2.948` | `3.855` | `10.176` | **8.7%** |
+| **4. Trava por Pagador** (`_lock_payer` — `pg_advisory_xact_lock` com timeout `2s`) | `0.776` | **`1.042`** | `1.219` | `1.883` | `2.021` | **3.4%** |
+| **5. Carregamento de Snapshots** (`load_payer_snapshot`, `load_destination_snapshot`, `load_device_snapshot`) | `7.826` | **`10.809`** | `11.077` | `13.601` | `23.491` | **35.6%** |
+| **6. Avaliação Pura do Motor de Regras** (`evaluate(context, config)` — 26 regras em memória) | `0.193` | **`0.271`** | `0.478` | `0.364` | `6.721` | **0.9%** |
+| **7. Persistência, Reputação, Outbox e Commit** (`persist_analysis` + `commit`) | `9.166` | **`11.297`** | `11.251` | `12.368` | `18.951` | **37.2%** |
+| **Total Interno do Controller** (`AvaliarPixController.avaliar`) | `26.093` | **`30.354`** | `33.001` | `33.217` | `116.758` | **100%** |
+| **HTTP End-to-End (`POST /pix/transaction` — Nova Análise)** | `35.179` | **`38.369`** | `40.017` | `42.967` | `85.709` | **SLA < 300 ms (Folga de 87%)** |
+| **Replay Idempotente (`200 OK` — Mesma chave e corpo)** | `6.174` | **`7.486`** | `7.749` | `10.115` | `10.660` | **SLA < 300 ms** |
+| **Replay de Confirmação 2FA (`second_factor_passed=True`)** | `6.094` | **`8.225`** | `8.769` | `12.363` | `16.125` | **SLA < 300 ms** |
+
+---
+
 ## Como rodar e testar
 
 Sobe o banco e a API:
@@ -760,21 +706,106 @@ Sobe o banco e a API:
 docker compose up -d --build
 ```
 
-Roda os 102 testes: 69 unitários (motor e conector da QI Tech contra um mock), 19 da API Pix (8 do 2FA com o mock da QI) e 14 da API bancária:
+Roda a suíte completa via Docker (sem precisar instalar Python localmente):
 
 ```bash
-pytest
+docker compose --profile test run --rm test
+```
+
+Ou localmente com relatório de cobertura de **100% do domínio (`src/domain/`)**, benchmark e inspeção do banco:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+
+# Executa os 142 testes (104 unitários + 38 de integração) e verifica 100% de cobertura em src/domain
+pytest --cov=src/domain --cov-report=term-missing
+
+# Mede o tempo etapa por etapa da API do motor
+python scripts/benchmark_telemetry.py
+
+# Inspeciona as tabelas e linhas atuais do PostgreSQL
+python scripts/inspect_db.py
 ```
 
 Gera a massa sintética (600 Pix pela API) e o relatório do backtest, em [docs/backtest-massa-sintetica.md](docs/backtest-massa-sintetica.md):
 
 ```bash
 python scripts/massa_sintetica.py
-```
-
-```bash
 python scripts/backtest.py
 ```
+
+### Mapa da Suíte de Testes (142 Testes — 100% de Cobertura em `src/domain/`)
+
+| Suíte / Arquivo | Qtd. Testes | Base Acionada | O que é verificado |
+| :--- | :---: | :---: | :--- |
+| [`tests/unit/test_rules_catalog.py`](./tests/unit/test_rules_catalog.py) | `35` | Memória (`conftest.py` lê seed de `database.sql`) | Cobertura unitária exaustiva de todas as regras `E1..E5`, `D1..D3`, `G1..G2`, `C2..C8`, `P1..P2`, `M1..M2`, `V2`, `O1`, `K1..K2`, `R1`, `X2`, `F1..F3`, transições de reputação e funções de identidade/estatística |
+| [`tests/unit/test_engine_improvements.py`](./tests/unit/test_engine_improvements.py) | `24` | Memória | Fronteiras inclusivas das faixas `A..D`, função `decide`, banimento de bets (`E6`), níveis de teletransporte (`G2`), teto por família (`capped_score`) e piso `X1` |
+| [`tests/unit/test_pix_validation.py`](./tests/unit/test_pix_validation.py) | `14` | Memória | JSON Schema `post_pix_transaction.json`, mapeamento de erros `AFP`, normalização do alias `app` $\to$ `celular` e invariância do `request_hash` no 2FA |
+| [`tests/unit/test_fraud_engine.py`](./tests/unit/test_fraud_engine.py) | `12` | Memória | P95 resistente a outlier, limite noturno (`E4`), aluguel recorrente (`H2`), teste+drenagem (`C8`), rajada (`V1`), 2FA Social (`TRUSTED_CONTACT_APPROVAL`) e reconhecimento de MEI |
+| [`tests/unit/test_qitech_connector.py`](./tests/unit/test_qitech_connector.py) | `11` | Memória (`QITechTwoFactorMock`) | Conversão de centavos para reais, abertura de transferência 2FA v2 (`pending_2fa_approval`), validação de token, expiração, reenvio, recusa na 5ª tentativa e falhas de rede |
+| [`tests/unit/test_channel_rules.py`](./tests/unit/test_channel_rules.py) | `8` | Memória | Geolocalização ausente (`G4`), chamada ativa (`R1`), automação robótica desktop (`R2`) com escalada para `rejected` e mudança de segmento (`K1`) |
+| [`tests/integration/fraud/test_fraud_outbox.py`](./tests/integration/fraud/test_fraud_outbox.py) | `11` | PostgreSQL Real (`DbUtils.rollback()`) | Gravação de Pix retido na `notification_outbox`, idempotência (`201` vs `200` vs `409`), escalada de `friction_answer=YES`, aprovação com `second_factor_passed=True` e endpoint `/pix/feedback` |
+| [`tests/integration/fraud/test_qitech_second_factor.py`](./tests/integration/fraud/test_qitech_second_factor.py) | `8` | PostgreSQL Real (`DbUtils.rollback()`) | Fluxo completo 2FA v2 da QI Tech via endpoints `POST .../second_factor`, `PUT .../token` e `PATCH .../token`, escalada para Contato de Confiança e bloqueio após 5 tentativas |
+| [`tests/integration/fraud/test_fraud_scenarios.py`](./tests/integration/fraud/test_fraud_scenarios.py) | `5` | PostgreSQL Real (`DbUtils.rollback()`) | Cenários ponta a ponta: cliente rotineiro aprovado, quarentena policial (`E3`), desafio e aprovação 2FA, proteção noturna de MEI (`E4`) e bot desktop (`R2`) |
+| [`tests/integration/banking/test_bank_api.py`](./tests/integration/banking/test_bank_api.py) + [`test_healthcheck.py`](./tests/integration/test_healthcheck.py) | `14` | PostgreSQL Real (`DbUtils.rollback()`) | Operações bancárias, Cofre Antivícios em compras, concorrência multi-thread de saldo/contatos e preservação de acentuação nos erros |
+| **Total** | **142** | **100% Passando** | **100% de cobertura em todos os módulos de regras e entidades de `src/domain/`** |
+
+### Quantidade de Requisições e Tempo Médio por Caminho (Rota) nos Testes
+
+Durante a execução dos **38 testes de integração** da suíte `pytest`, são realizadas **151 requisições HTTP** distribuídas por todas as rotas da API (além de **1.290 requisições HTTP** quando executada a geração da massa sintética em [`scripts/massa_sintetica.py`](./scripts/massa_sintetica.py)):
+
+| Caminho / Rota HTTP | Qtd. Requisições (`pytest`) | Qtd. Requisições (`massa_sintetica.py`) | Tempo Médio (ms) | Mediana P50 (ms) | Mínimo (ms) | Máximo (ms) | Status HTTP Retornados (`pytest`) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| `POST /pix/transaction` | `35` | `690` *(600 Pix + 90 replays 2FA)* | **`46,74 ms`** | `46,63 ms` | `14,11 ms` | `268,41 ms` | `201 (23x)`, `200 (4x)`, `400 (5x)`, `422 (2x)`, `409 (1x)` |
+| `POST /customer` | `19` | *(via seed SQL)* | **`14,07 ms`** | `14,10 ms` | `7,79 ms` | `20,08 ms` | `201 (18x)`, `400 (1x)` |
+| `POST /account` | `18` | *(via seed SQL)* | **`16,83 ms`** | `16,10 ms` | `14,39 ms` | `22,79 ms` | `201 (18x)` |
+| `PUT /pix/transaction/{id}/second_factor/token` | `13` | — | **`24,89 ms`** | `29,43 ms` | `4,73 ms` | `39,93 ms` | `200 (4x)`, `422 (7x)`, `400 (1x)`, `404 (1x)` |
+| `POST /pix/transaction/{id}/second_factor` | `12` | — | **`23,71 ms`** | `24,70 ms` | `14,02 ms` | `41,06 ms` | `201 (6x)`, `200 (1x)`, `422 (3x)`, `409 (1x)`, `503 (1x)` |
+| `POST /account/{account_key}/trusted_contact` | `11` | *(via seed SQL)* | **`25,74 ms`** | `20,86 ms` | `18,19 ms` | `44,98 ms` | `201 (9x)`, `409 (2x)` |
+| `POST /account/{account_key}/deposit` | `11` | *(via seed SQL)* | **`36,79 ms`** | `23,43 ms` | `6,55 ms` | `75,46 ms` | `201 (4x)`, `200 (5x)`, `400 (1x)`, `409 (1x)` |
+| `POST /transfer` *(inclui teste de corrida multi-thread)* | `10` | *(via seed SQL)* | **`122,95 ms`** | `131,18 ms` | `83,52 ms` | `153,05 ms` | `201 (5x)`, `409 (5x)` |
+| `GET /pix/transaction/{id}` | `4` | — | **`8,56 ms`** | `10,32 ms` | `4,28 ms` | `10,98 ms` | `200 (2x)`, `403 (1x)`, `404 (1x)` |
+| `PUT /sample` *(teste de autenticação/404)* | `4` | — | **`5,48 ms`** | `5,57 ms` | `4,23 ms` | `6,79 ms` | `403 (2x)`, `404 (2x)` |
+| `GET /account/{account_key}` | `3` | — | **`8,02 ms`** | `7,57 ms` | `7,46 ms` | `9,03 ms` | `200 (3x)` |
+| `GET /account/{account_key}/statement` | `2` | — | **`9,54 ms`** | `11,72 ms` | `7,36 ms` | `11,72 ms` | `200 (1x)`, `400 (1x)` |
+| `POST /account/{account_key}/purchase` | `2` | — | **`18,57 ms`** | `20,80 ms` | `16,34 ms` | `20,80 ms` | `201 (1x)`, `422 (1x)` |
+| `POST /pix/feedback` | `2` | `600` | **`13,61 ms`** | `17,69 ms` | `9,53 ms` | `17,69 ms` | `201 (1x)`, `404 (1x)` |
+| `PUT /account/{account_key}/blocked_mcc` | `1` | — | **`15,51 ms`** | `15,51 ms` | `15,51 ms` | `15,51 ms` | `200 (1x)` |
+| `PATCH /pix/transaction/{id}/second_factor/token` | `1` | — | **`37,28 ms`** | `37,28 ms` | `37,28 ms` | `37,28 ms` | `200 (1x)` |
+| `GET /` | `1` | — | **`6,21 ms`** | `6,21 ms` | `6,21 ms` | `6,21 ms` | `200 (1x)` |
+| `GET /health_check` | `1` | — | **`7,15 ms`** | `7,15 ms` | `7,15 ms` | `7,15 ms` | `200 (1x)` |
+| `PUT /health_check` *(teste de método 405)* | `1` | — | **`4,89 ms`** | `4,89 ms` | `4,89 ms` | `4,89 ms` | `405 (1x)` |
+| **Total Geral de Requisições HTTP** | **`151`** | **`1.290`** | **`33,42 ms`** *(média ponderada)* | — | **`4,23 ms`** | **`268,41 ms`** | **100% abaixo do SLA de 300 ms** |
+
+### Quantidade de Dados Alimentados no Banco de Dados por Tabela nos Testes
+
+A tabela abaixo detalha exatamente quantas linhas são inseridas no PostgreSQL durante os **32 ciclos de isolamento (`DbUtils.rollback()`) da suíte `pytest`** e durante a **carga da Massa Sintética de Backtest (`scripts/massa_sintetica.py`)**:
+
+| Tabela (`schema.tabela`) | Linhas Alimentadas na Suíte `pytest` (32 ciclos) | Linhas Alimentadas no Backtest (`massa_sintetica.py`) | Origem dos Dados |
+| :--- | :---: | :---: | :--- |
+| `fraude.pix_rule_result` | **`89`** | **`~1.310`** | Gravado pelo motor para cada regra acionada em `POST /pix/transaction` (e escaladas `ESCALATION`/`QI2FA`) |
+| `fraude.pix_analysis` | **`23`** | **`600`** | Gravado pelo motor em cada `POST /pix/transaction` válido (`480` legítimos + `120` golpes/bets no backtest) |
+| `fraude.device_seen` | **`22`** | **`~830`** | `UPSERT` pelo motor a cada Pix + carga histórica de `cel`, `pc` e `rel` por pagador no backtest |
+| `fraude.destination_reputation` | **`22`** | **`~340`** | `UPSERT` incremental (`n = n + 1`) pelo motor a cada análise Pix concluída |
+| `public.ledger_entry` | **`20`** | **`~2.150`** | Partidas contábeis (`DEPOSIT`, `PURCHASE`, `TRANSFER` e `FEE`) geradas nas movimentações financeiras |
+| `public.customer` | **`18`** | **`600`** | Clientes PF e PJ/MEI criados via `POST /customer` (`pytest`) ou seed SQL (`100` pagadores, `60` locadores, `120` parentes, `2` mulas, `318` outros) |
+| `public.account` | **`18`** | **`600`** | Contas criadas via `POST /account` (`pytest`) ou seed SQL |
+| `public.blocked_mcc` | **`17`** | **`650`** | Bloqueio automático do MCC `7995` na abertura de conta (`+50` bloqueios de MCC `7801` no backtest) |
+| `public.bank_transaction` | **`10`** | **`~1.120`** | Transações financeiras liquidadas (`DEPOSIT`, `PURCHASE`, `TRANSFER`) |
+| `public.trusted_contact` | **`9`** | **`600`** | Contatos de confiança cadastrados por conta (com `approval_consent_at` em 40% dos casos no backtest) |
+| `public.notification_outbox` | **`4`** | **`~190`** | Eventos `PENDING` gerados para Contatos de Confiança em movimentações ou Pix retidos/rejeitados |
+| `public.merchant` | **`1`** | **`600`** | Estabelecimentos comerciais com CNPJ e MCC (`7995` apostas e serviços diversos) |
+| `fraude.destination_flag` | **`1`** | **`600+`** | Marcações `OBSERVACAO`, `QUARENTENA` e `MARCADA` (seed + geradas pelo motor) |
+| `fraude.pix_feedback` | **`1`** | **`600`** | Rótulos enviados via `POST /pix/feedback` (`is_fraud` e tipologia do golpe/legítimo) |
+| `fraude.bet_destination` | **`96`** *(3 por ciclo × 32)* | **`600`** *(3 seed + 597 gerados)* | Lista regulatória de CNPJs de casas de apostas (regra `E6`) |
+| `fraude.engine_config` | **`32`** *(1 por ciclo × 32)* | **`1`** | Configuração ativa (`version = 1`) carregada por `database.sql` |
+| `fraude.of_payer_profile` | **`0`** *(testado em memória)* | **`600`** | Perfis de renda e saldo externos do Open Finance |
+| `fraude.pix_shadow_result` | **`0`** | **`600`** | Scores do modelo em modo sombra (`shadow-baseline-sintetico-v0`) |
+| **Total de Registros Alimentados** | **`383 linhas`** *(255 dinâmicas + 128 seed)* | **`~10.891 linhas`** | **100% validados pelas constraints do PostgreSQL 16** |
+
+---
 
 ## Resultado do backtest
 
@@ -811,50 +842,116 @@ E 120 golpes ou bloqueios:
 - **K1.** Disparou só em legítimos. As vítimas fazem poucos Pix e não atingem o mínimo de 5 transações.
 - **Limites da massa.** A massa sintética mede a coerência interna das regras, não a taxa real de fraude. As tipologias têm 5 a 30 casos, então um Pix muda o percentual em vários pontos.
 
+---
+
 ## Códigos de erro
 
 Todo erro tem `code`, `title`, `description`, `translation`, `request_id` e `errors` (`field`, `rule`, `message`), e nunca expõe a stack nem o documento completo.
 
+### Códigos do Motor Antifraude Pix (`AFP`)
+
 | Código | Status | Quando |
-| --- | --- | --- |
-| `AFP000001` | 400 | Corpo, cabeçalho ou parâmetro fora do formato |
-| `AFP000002` | 403 | `INTERNAL-TOKEN` ausente ou errado |
-| `AFP000003` | 404 | Análise inexistente (`GET` ou feedback) |
-| `AFP000004` | 409 | Mesmo `id` com corpo diferente |
-| `AFP000005` | 422 | CPF ou CNPJ com dígitos verificadores inválidos |
-| `AFP000006` | 400 | `transaction_date` sem fuso, inválida ou mais de 5 min no futuro |
-| `AFP000007` | 422 | `channel` fora do enum |
-| `AFP000008` | 400 | `amount` menor que 1 ou não inteiro |
-| `AFP000009` | 503 | Espera pela trava do pagador passou do máximo; repita com o mesmo `id` |
-| `AFP000010` | 409 | O Pix não está aguardando segundo fator (ou o desafio não foi aberto) |
-| `AFP000011` | 422 | Token incorreto (QI `PXT000173`) |
-| `AFP000012` | 422 | Token expirado; peça um novo (QI `PXT000172`) |
-| `AFP000013` | 422 | 5 tentativas erradas: a QI rejeitou e o Pix virou `rejected` (QI `PXT000171`) |
-| `AFP000014` | 503 | QI Tech indisponível ou falha no envio do token; repita |
-| `AFP000015` | 422 | Transferência recusada pela QI Tech (o código da QI vai em `errors`) |
-| `AFP000016` | 422 | Aprovador incompatível com o desafio ou sem permissão na QI (`PXT000168`) |
+| --- | :---: | --- |
+| `AFP000001` | `400` | Corpo, cabeçalho ou parâmetro fora do formato |
+| `AFP000002` | `403` | `INTERNAL-TOKEN` ausente ou errado |
+| `AFP000003` | `404` | Análise inexistente (`GET` ou feedback) |
+| `AFP000004` | `409` | Mesmo `id` com corpo diferente |
+| `AFP000005` | `422` | CPF ou CNPJ com dígitos verificadores inválidos |
+| `AFP000006` | `400` | `transaction_date` sem fuso, inválida ou mais de 5 min no futuro |
+| `AFP000007` | `422` | `channel` fora do enum |
+| `AFP000008` | `400` | `amount` menor que 1 ou não inteiro |
+| `AFP000009` | `503` | Espera pela trava do pagador passou do máximo; repita com o mesmo `id` |
+| `AFP000010` | `409` | O Pix não está aguardando segundo fator (ou o desafio não foi aberto) |
+| `AFP000011` | `422` | Token incorreto (QI `PXT000173`) |
+| `AFP000012` | `422` | Token expirado; peça um novo (QI `PXT000172`) |
+| `AFP000013` | `422` | 5 tentativas erradas: a QI rejeitou e o Pix virou `rejected` (QI `PXT000171`) |
+| `AFP000014` | `503` | QI Tech indisponível ou falha no envio do token; repita |
+| `AFP000015` | `422` | Transferência recusada pela QI Tech (o código da QI vai em `errors`) |
+| `AFP000016` | `422` | Aprovador incompatível com o desafio ou sem permissão na QI (`PXT000168`) |
 
-## Modelo de dados
+### Códigos do Core Bancário (`BNK`)
 
-O motor não tem banco próprio: usa o PostgreSQL do Banco 60+. Ele **só lê** as tabelas do banco (`customer`, `account`, `blocked_mcc`, `merchant`, `trusted_contact`, `bank_transaction`, `ledger_entry`) e **escreve** no schema `fraude` e, para avisos, na `notification_outbox`. Nunca mexe em saldo nem em extrato.
+| Código | Status | Quando |
+| --- | :---: | --- |
+| `BNK000001` | `400` | Corpo, cabeçalho ou parâmetro de consulta fora do formato esperado |
+| `BNK000002` | `403` | `INTERNAL-TOKEN` ausente ou incorreto |
+| `BNK000011` | `400` | Cabeçalho `Idempotency-Key` ausente em operação de dinheiro |
+| `BNK000012` | `409` | Mesma chave de idempotência reenviada com corpo diferente |
+| `BNK000404` | `404` | Rota ou recurso HTTP inexistente |
+| `BNK001001` | `409` | Documento (CPF/CNPJ) ou e-mail já cadastrado |
+| `BNK001002` | `422` | CPF ou CNPJ com dígitos verificadores inválidos |
+| `BNK001003` | `404` | Cliente não encontrado |
+| `BNK002001` | `404` | Conta não encontrada |
+| `BNK002002` | `409` | Cliente já possui conta cadastrada |
+| `BNK002003` | `400` | Limite por transferência menor que 1 centavo |
+| `BNK002004` | `400` | Lista de MCCs fora do formato (deve conter 4 dígitos por MCC) |
+| `BNK003001` | `409` | Limite de contatos de confiança atingido (máximo de 2 por conta) |
+| `BNK003002` | `409` | Contato de confiança com mesmo endereço já cadastrado na conta |
+| `BNK004001` | `409` | Saldo insuficiente (considera valor + tarifa na transferência) |
+| `BNK004002` | `422` | Transferência para a mesma conta (origem igual ao destino) |
+| `BNK004003` | `422` | Valor da transferência excede o limite configurado na conta |
+| `BNK004004` | `422` | Operação bloqueada pelo Cofre Antivícios (MCC `7995` / apostas) |
+| `BNK004005` | `422` | CNPJ do lojista com dígitos verificadores inválidos |
+| `BNK004006` | `400` | Valor monetário menor que 1 centavo |
+| `BNK004007` | `503` | Timeout ao aguardar trava de linha no banco de dados |
 
-| Tabela (`fraude.`) | Conteúdo |
-| --- | --- |
-| `pix_analysis` | Uma linha por Pix: `pix_id` único, `request_hash`, status, score, faixa, versão do motor, documentos em hash e máscara, canal, aparelho, geolocalização, `metadata`, campos da fricção e do desafio na QI Tech (`qi_account_key`, `qi_pix_transfer_key`, `qi_end_to_end_id`, status da QI e prazo do token) |
-| `pix_rule_result` | Regra, pontos e `evidence` (JSON) de cada regra disparada, para auditoria e backtest |
-| `device_seen` | Aparelho × pagador com primeira e última vez visto (D1, D2, E5) |
-| `destination_flag` | `OBSERVACAO`, `QUARENTENA` e `MARCADA`, com validade |
-| `destination_reputation` | Contadores por destino (análises, reprovações, 2FA, pagadores em 24 h, repasse em 1 h), atualizados com `n = n + 1` |
-| `bet_destination` | CNPJs de bets (E6) |
-| `of_payer_profile` | Agregados do Open Finance (renda, saldo, consentimento), carregados fora da decisão |
-| `engine_config` | Parâmetros versionados com `active_from` |
-| `pix_feedback` | Rótulos de fraude (evolução) |
-| `pix_shadow_result` | Score do modo sombra, que não altera a resposta (evolução) |
+---
 
-**Alterações no Banco 60+:**
-- `notification_outbox` aceita `transaction_id` nulo e ganha `analysis_id`, com `CHECK` de que exatamente um dos dois está preenchido. Também ganha `UNIQUE (analysis_id, contact_id)` e um índice parcial `WHERE transaction_id IS NULL`, que é o filtro dos Pix barrados ou retidos.
-- `trusted_contact` ganha `approval_consent_at`.
-- `bank_transaction` ganha índices para o histórico do par pagador–destino.
+## Estrutura do Projeto
+
+```text
+bootcamp-entrega-final/
+├── database/
+│   ├── database.sql                       # Esquema DDL completo (schemas public e fraude + seed engine_config v1)
+│   └── seed_test_scenarios.sql            # Carga opcional de cenários de demonstração
+├── docs/
+│   ├── apresentacao-comercial-produto.md  # Pitch deck comercial e executivo do produto
+│   ├── backtest-massa-sintetica.md        # Relatório estatístico sobre 600 transações sintéticas
+│   ├── banco-60.md                        # Especificação e documentação da API Core Bancário 60+
+│   ├── banco60_banner.jpg                 # Identidade visual do projeto
+│   ├── como-o-projeto-e-organizado.md     # Guia de arquitetura em camadas e fluxo de requisições
+│   ├── motor-antifraude-ajustes.md        # Histórico de evolução e ajustes das regras
+│   ├── politica-resiliencia-sla-antifraude.md # Política de resiliência e SLA (< 300 ms)
+│   └── diagramas/                         # Diagramas SVG (passo 4b, fluxo do Pix, arquitetura, reputação)
+├── scripts/
+│   ├── backtest.py                        # Avaliação estatística sobre massa sintética rotulada
+│   ├── benchmark_telemetry.py             # Benchmark etapa por etapa da API do motor antifraude
+│   ├── inspect_db.py                      # Inspeção formatada das tabelas e linhas do PostgreSQL
+│   ├── massa_sintetica.py                 # Geração de massa sintética de Pix legítimos e golpes
+│   └── simulate_fraud_attacks.py          # Simulação de vetores de ataque contra a API
+├── src/
+│   ├── app.py                             # Entrypoint FastAPI e registro de rotas/middlewares
+│   ├── constants.py                       # Variáveis de ambiente e configuração
+│   ├── database.py                        # Engine SQLAlchemy e gerenciamento de contexto por requisição
+│   ├── connectors/                        # Conectores REST externos (QITechConnector 2FA v2, RestConnector)
+│   ├── controllers/                       # Orquestração (AvaliarPixController, PixSecondFactorController, etc.)
+│   ├── domain/                            # Núcleo puro do Motor Antifraude Pix (100% em memória, 100% coberto)
+│   │   ├── config.py                      # Leitura tipada de faixas, janelas, fuso horário e flags
+│   │   ├── engine.py                      # Orquestrador evaluate(), decide(), capped_score() e 2FA
+│   │   ├── entities.py                    # Entidades imutáveis (PixRequest, EvaluationContext, Decision...)
+│   │   ├── facts.py                       # Extração de fatos derivados do histórico (P95, H2, estágio de device)
+│   │   ├── identity.py                    # Hashing SHA-256 e mascaramento de documentos
+│   │   ├── payer_class.py                 # Classificação PF / MEI / PJ por documento e razão social
+│   │   ├── reputation.py                  # Máquina de estados do destinatário (NORMAL -> OBSERVACAO -> QUARENTENA)
+│   │   ├── statistics.py                  # Percentil linear, mediana e distância geodésica de Haversine
+│   │   └── rules/                         # Regras divididas em eliminatory.py, scoring.py e channel.py
+│   ├── dtos/                              # Envelopes de saída HTTP (BankDTO, PixAnalysisDTO)
+│   ├── errors/                            # Hierarquia de exceções e catálogos BNK e AFP
+│   ├── middlewares/                       # Token interno (compare_digest), log seguro, request_id e sessão DB
+│   ├── models/                            # Modelos SQLAlchemy dos schemas public (banking.py) e fraude (fraud.py)
+│   ├── repositories/                      # Consultas SQL, travas FOR UPDATE / advisory lock e outbox
+│   ├── resources/                         # Adaptadores HTTP FastAPI e validação JSON Schema
+│   ├── schemas/                           # Contratos JSON de entrada (post_pix_transaction.json, 2FA, etc.)
+│   └── utils/                             # Validação de dígitos de CPF/CNPJ, UUID e mapeadores de erro
+├── tests/
+│   ├── unit/                              # 104 testes unitários do motor antifraude, 2FA e validações
+│   └── integration/                       # 38 testes de integração (banking, fraud, 2FA QI Tech e outbox)
+├── docker-compose.yml                     # Orquestração da API, PostgreSQL 16 e perfil de testes
+├── Dockerfile                             # Imagem Docker da aplicação
+└── requirements.txt                       # Dependências de produção
+```
+
+---
 
 ## Premissas e fora do escopo
 
