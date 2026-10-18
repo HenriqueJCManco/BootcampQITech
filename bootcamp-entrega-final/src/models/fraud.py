@@ -56,10 +56,16 @@ class PixAnalysisModel(Base):
             name="chk_pix_analysis_channel",
         ),
         CheckConstraint(
-            "challenge_type IN ('BIOMETRIC_2FA', 'TRUSTED_CONTACT_APPROVAL')",
+            "challenge_type IN ('CUSTOMER_TOKEN_2FA', 'TRUSTED_CONTACT_APPROVAL')",
             name="chk_pix_analysis_challenge_type",
         ),
         CheckConstraint("friction_answer IN ('YES', 'NO', 'SKIP')", name="chk_pix_analysis_friction_answer"),
+        UniqueConstraint("qi_pix_transfer_key", name="uq_pix_analysis_qi_pix_transfer_key"),
+        CheckConstraint(
+            "qi_transfer_status IN ('pending_2fa_approval', 'sent', 'pending', 'rejected')",
+            name="chk_pix_analysis_qi_transfer_status",
+        ),
+        CheckConstraint("qi_contact_type IN ('sms', 'email')", name="chk_pix_analysis_qi_contact_type"),
         CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="chk_pix_analysis_geolocation"),
         CheckConstraint("geo_accuracy_m IS NULL OR geo_accuracy_m >= 0", name="chk_pix_analysis_geo_accuracy"),
         Index("ix_pix_analysis_source_date", "source_hash", text("transaction_date DESC")),
@@ -103,6 +109,13 @@ class PixAnalysisModel(Base):
     friction_answer = Column(String(4))
     friction_answered_at = Column(DateTime(timezone=True))
     second_factor_contact_id = Column(BigInteger, ForeignKey("trusted_contact.id"))
+    qi_account_key = Column(UUID(as_uuid=True))
+    qi_request_control_key = Column(UUID(as_uuid=True))
+    qi_pix_transfer_key = Column(UUID(as_uuid=True))
+    qi_end_to_end_id = Column(String(32))
+    qi_transfer_status = Column(String(30))
+    qi_contact_type = Column(String(5))
+    challenge_expires_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     rule_results = relationship(

@@ -109,7 +109,7 @@ def test_daytime_pix_to_young_destination_asks_two_factor(engine_config):
     assert decision.status == TWO_FACTOR_REQUIRED
     assert decision.value_band == "C"
     assert {"C1", "C2"} <= codes(decision)
-    assert decision.challenge_type == "BIOMETRIC_2FA"
+    assert decision.challenge_type == "CUSTOMER_TOKEN_2FA"
     assert decision.friction_script_key == "CONFIRM_IDENTITY"
 
 

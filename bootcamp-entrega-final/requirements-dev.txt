@@ -6,3 +6,5 @@
 pytest==8.4.2
 pytest-cov==6.2.1
 python-dotenv==1.0.1
+# O httpx e o cliente que o TestClient do FastAPI usa nos testes do 2FA.
+httpx==0.28.1

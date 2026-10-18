@@ -27,15 +27,18 @@ flowchart TD
     D -- rejected --> G["ROLLBACK<br/>422 BNK004008 BLOCKED_FOR_SAFETY"]
     D -- "sem resposta ou 5xx" --> H["503 BNK004010<br/>repetir com a mesma chave"]
     D -- two_factor_required --> I["ROLLBACK, 422 BNK004009<br/>challenge_type e friction_script_key"]
-    I --> J["QI Tech: biometria do cliente<br/>ou aprovação do Contato de Confiança"]
-    J --> K["App repete o POST /transfer<br/>mesma chave, prova e friction_answer"]
-    K --> L["Motor recebe o mesmo id<br/>com second_factor_passed"]
+    I --> J["POST .../second_factor<br/>QI Tech: pix_transfer com tfa_info"]
+    J --> K["QI envia token de 6 caracteres por SMS ou e-mail<br/>ao cliente ou ao Contato de Confiança"]
+    K --> L["PUT .../second_factor/token<br/>token e friction_answer"]
     L --> M{"Respondeu YES em<br/>CALL_COACHING_CHECK?"}
-    M -- não --> N["approved, grava second_factor_at"]
-    N --> E
-    M -- "sim, com Contato consentido" --> O["TRUSTED_CONTACT_APPROVAL"]
-    O --> J
     M -- "sim, sem Contato" --> G
+    M -- "sim, com Contato consentido" --> O["TRUSTED_CONTACT_APPROVAL<br/>novo desafio para o Contato"]
+    O --> J
+    M -- não --> P{"QI valida o token"}
+    P -- "sent ou pending" --> N["approved, grava second_factor_at"]
+    N --> E
+    P -- "token errado ou expirado" --> L
+    P -- "5 tentativas erradas" --> G
 ```
 
 </details>
@@ -132,6 +135,9 @@ O repositório é o único ponto que fala com o banco. O motor só lê as tabela
 | `POST` | `/pix/transaction` | Analisa o Pix, grava e responde. `201` na primeira vez; `200` na repetição do mesmo corpo |
 | `GET` | `/pix/transaction/{id}` | Devolve a análise gravada; `404` se não existe |
 | `POST` | `/pix/feedback` | Grava o rótulo `{ transaction_id, is_fraud, reason }` (evolução: massa rotulada) |
+| `POST` | `/pix/transaction/{id}/second_factor` | Abre o 2FA na QI Tech para um Pix em `two_factor_required`: `201` na primeira vez, `200` se o desafio já está aberto |
+| `PUT` | `/pix/transaction/{id}/second_factor/token` | Confirma o token na QI Tech (com `friction_answer` opcional) |
+| `PATCH` | `/pix/transaction/{id}/second_factor/token` | Pede à QI Tech um novo token (reinicia os 5 minutos) |
 | `GET` | `/health_check` | Diz se está de pé (`204`) |
 
 Todas as rotas, menos `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN`. Ausente ou errado, a resposta é `403 AFP000002`, e a comparação é feita em tempo constante. **Reprovar um Pix não é erro**: a resposta é `201` com `status: rejected`.
@@ -182,7 +188,7 @@ Todas as rotas, menos `/health_check`, exigem o cabeçalho `INTERNAL-TOKEN`. Aus
     "notify_trusted_contact": true,
     "customer_message_key": "CONFIRM_IDENTITY",
     "inputs_missing": ["geolocation", "destination_account.created_at"],
-    "challenge_type": "BIOMETRIC_2FA",
+    "challenge_type": "CUSTOMER_TOKEN_2FA",
     "friction_script_key": "CONFIRM_IDENTITY",
     "friction_params": {}
   }
@@ -310,14 +316,22 @@ A fronteira desce quando o valor sobe: o custo da fraude cresce com o valor, e o
 - Ligação em andamento num Pix pequeno para destino conhecido: score baixo, mas o piso da R1 leva a `two_factor_required`.
 
 **Tipo de desafio e fricção** (na `metadata` quando há 2FA):
-- `challenge_type` é `BIOMETRIC_2FA` (padrão, feito pela QI Tech) ou `TRUSTED_CONTACT_APPROVAL`. O segundo vale quando R1 (ligação), C1 e F2 convergem e o Contato de Confiança deu aceite (`approval_consent_at`).
+- `challenge_type` diz **para quem vai o token** da QI Tech: `CUSTOMER_TOKEN_2FA` (padrão, o próprio cliente) ou `TRUSTED_CONTACT_APPROVAL` (o Contato de Confiança). O segundo vale quando R1 (ligação), C1 e F2 convergem e o Contato deu aceite (`approval_consent_at`).
 - `friction_script_key` diz ao app qual pergunta fazer antes do 2FA, pela ordem R1, F3, C6, C5: `CALL_COACHING_CHECK`, `PASSTHROUGH_CHECK`, `MULE_DESTINATION_CHECK`; nos demais casos, `CONFIRM_IDENTITY`.
 - O motor devolve só a chave e uma faixa qualitativa, nunca o limiar ou o número.
 
-**Segundo fator.** A `transaction-api` reenvia o mesmo `id` com `second_factor_passed: true` e, se houve pergunta, `friction_answer` (`YES`, `NO` ou `SKIP`). Esses campos não entram no `request_hash`.
-- O motor devolve a análise original como `approved`, sem recalcular, e grava `second_factor_at`.
-- "Sim, há alguém no telefone" escala: vira `TRUSTED_CONTACT_APPROVAL` se há Contato consentido, ou `rejected` se não há.
-- A escalada nunca relaxa: um `rejected` não vira `approved`.
+**Segundo fator pela QI Tech (2FA v2).** O motor só decide; quem fala com a QI é o `PixSecondFactorController`, no papel da `transaction-api`:
+
+1. `POST /pix/transaction/{id}/second_factor` cria a transferência na QI (`POST /account/{account_key}/pix_transfer`) com `tfa_info` (CPF do aprovador e `sms` ou `email`). A QI responde `pending_2fa_approval` e envia o token. O motor grava `qi_pix_transfer_key`, `qi_account_key`, o status da QI e o prazo de 5 minutos na análise.
+2. O aprovador precisa combinar com o desafio. Em `CUSTOMER_TOKEN_2FA` tem de ser o próprio pagador; em `TRUSTED_CONTACT_APPROVAL`, nunca o pagador. Na QI, ele também precisa estar cadastrado como aprovador da conta.
+3. `PUT .../second_factor/token` primeiro aplica a resposta de fricção. "Sim, há alguém no telefone" escala o desafio sem chamar a QI: vira `TRUSTED_CONTACT_APPROVAL` se há Contato consentido, ou `rejected` se não há.
+4. Se não houve escalada, o token é validado na QI (`validate_token`):
+   - `sent` ou `pending` aprovam o Pix e gravam `second_factor_at`;
+   - token errado ou expirado mantém o Pix retido;
+   - a 5ª tentativa errada faz a QI rejeitar a transferência, e o Pix vira `rejected` (regra `QI2FA` na auditoria).
+5. `PATCH .../second_factor/token` pede um novo token (`resend_token`). O prazo de 5 minutos reinicia, mas a contagem de tentativas, não.
+
+A escalada nunca relaxa: um `rejected` não vira `approved`. Para quem integra o motor por fora, o reenvio do mesmo `id` com `second_factor_passed: true` continua valendo. Esse campo e o `friction_answer` não entram no `request_hash`.
 
 **Aviso ao Contato de Confiança.** Com `rejected` ou `two_factor_required` e Contato cadastrado, o motor grava o aviso na `notification_outbox` com `transaction_id = NULL` e `analysis_id` preenchido, na mesma transação da análise. O `outbox-worker` do banco faz a entrega.
 
@@ -329,7 +343,7 @@ Sobe o banco e a API:
 docker compose up -d --build
 ```
 
-Roda os 83 testes (58 unitários do motor, 11 da API Pix e 14 da API bancária):
+Roda os 102 testes: 69 unitários (motor e conector da QI Tech contra um mock), 19 da API Pix (8 do 2FA com o mock da QI) e 14 da API bancária:
 
 ```bash
 pytest
@@ -395,6 +409,13 @@ Todo erro tem `code`, `title`, `description`, `translation`, `request_id` e `err
 | `AFP000007` | 422 | `channel` fora do enum |
 | `AFP000008` | 400 | `amount` menor que 1 ou não inteiro |
 | `AFP000009` | 503 | Espera pela trava do pagador passou do máximo; repita com o mesmo `id` |
+| `AFP000010` | 409 | O Pix não está aguardando segundo fator (ou o desafio não foi aberto) |
+| `AFP000011` | 422 | Token incorreto (QI `PXT000173`) |
+| `AFP000012` | 422 | Token expirado; peça um novo (QI `PXT000172`) |
+| `AFP000013` | 422 | 5 tentativas erradas: a QI rejeitou e o Pix virou `rejected` (QI `PXT000171`) |
+| `AFP000014` | 503 | QI Tech indisponível ou falha no envio do token; repita |
+| `AFP000015` | 422 | Transferência recusada pela QI Tech (o código da QI vai em `errors`) |
+| `AFP000016` | 422 | Aprovador incompatível com o desafio ou sem permissão na QI (`PXT000168`) |
 
 ## Modelo de dados
 
@@ -402,7 +423,7 @@ O motor não tem banco próprio: usa o PostgreSQL do Banco 60+. Ele **só lê** 
 
 | Tabela (`fraude.`) | Conteúdo |
 | --- | --- |
-| `pix_analysis` | Uma linha por Pix: `pix_id` único, `request_hash`, status, score, faixa, versão do motor, documentos em hash e máscara, canal, aparelho, geolocalização, `metadata` e campos do 2FA e da fricção |
+| `pix_analysis` | Uma linha por Pix: `pix_id` único, `request_hash`, status, score, faixa, versão do motor, documentos em hash e máscara, canal, aparelho, geolocalização, `metadata`, campos da fricção e do desafio na QI Tech (`qi_account_key`, `qi_pix_transfer_key`, `qi_end_to_end_id`, status da QI e prazo do token) |
 | `pix_rule_result` | Regra, pontos e `evidence` (JSON) de cada regra disparada, para auditoria e backtest |
 | `device_seen` | Aparelho × pagador com primeira e última vez visto (D1, D2, E5) |
 | `destination_flag` | `OBSERVACAO`, `QUARENTENA` e `MARCADA`, com validade |
@@ -428,7 +449,7 @@ O motor não tem banco próprio: usa o PostgreSQL do Banco 60+. Ele **só lê** 
 - **Renda.** Assumimos que o benefício chega como crédito `DEPOSIT` no ledger.
 
 **Fora do escopo:**
-- tela, envio e verificação do 2FA e biometria (QI Tech);
+- tela do 2FA no app; autenticação e assinatura das chamadas à QI Tech (usamos o cabeçalho `API-CLIENT-KEY`, configurável) e o webhook de conclusão assíncrona (`pending`);
 - conexão com o Open Finance;
 - entrega real do aviso (`outbox-worker`);
 - liquidação externa, MED e estorno;

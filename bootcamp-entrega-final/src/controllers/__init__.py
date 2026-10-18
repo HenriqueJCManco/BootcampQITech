@@ -1,5 +1,5 @@
 from controllers.account_controller import AccountController
 from controllers.avaliar_pix_controller import AvaliarPixController
 from controllers.customer_controller import CustomerController
+from controllers.pix_second_factor_controller import PixSecondFactorController
 from controllers.transaction_controller import TransactionController
-

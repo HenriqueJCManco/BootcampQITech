@@ -146,8 +146,19 @@ CREATE TABLE fraude.pix_analysis (
     friction_answer VARCHAR(4),
     friction_answered_at TIMESTAMPTZ,
     second_factor_contact_id BIGINT REFERENCES trusted_contact(id),
+    qi_account_key UUID,
+    qi_request_control_key UUID,
+    qi_pix_transfer_key UUID,
+    qi_end_to_end_id VARCHAR(32),
+    qi_transfer_status VARCHAR(30),
+    qi_contact_type VARCHAR(5),
+    challenge_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_pix_analysis_pix_id UNIQUE (pix_id),
+    CONSTRAINT uq_pix_analysis_qi_pix_transfer_key UNIQUE (qi_pix_transfer_key),
+    CONSTRAINT chk_pix_analysis_qi_transfer_status
+        CHECK (qi_transfer_status IN ('pending_2fa_approval', 'sent', 'pending', 'rejected')),
+    CONSTRAINT chk_pix_analysis_qi_contact_type CHECK (qi_contact_type IN ('sms', 'email')),
     CONSTRAINT chk_pix_analysis_status
         CHECK (status IN ('approved', 'two_factor_required', 'rejected')),
     CONSTRAINT chk_pix_analysis_value_band CHECK (value_band IN ('A', 'B', 'C', 'D')),
@@ -157,7 +168,7 @@ CREATE TABLE fraude.pix_analysis (
     CONSTRAINT chk_pix_analysis_channel
         CHECK (channel IN ('internet', 'celular', 'computador', 'tablet', 'relogio')),
     CONSTRAINT chk_pix_analysis_challenge_type
-        CHECK (challenge_type IN ('BIOMETRIC_2FA', 'TRUSTED_CONTACT_APPROVAL')),
+        CHECK (challenge_type IN ('CUSTOMER_TOKEN_2FA', 'TRUSTED_CONTACT_APPROVAL')),
     CONSTRAINT chk_pix_analysis_friction_answer CHECK (friction_answer IN ('YES', 'NO', 'SKIP')),
     CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL)),
     CONSTRAINT chk_pix_analysis_geo_accuracy CHECK (geo_accuracy_m IS NULL OR geo_accuracy_m >= 0)

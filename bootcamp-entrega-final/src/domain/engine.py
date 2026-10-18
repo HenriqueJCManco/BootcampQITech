@@ -2,7 +2,7 @@ from domain.rules import channel, eliminatory, scoring
 from domain.config import EngineConfig
 from domain.entities import (
     APPROVED,
-    BIOMETRIC_2FA,
+    CUSTOMER_TOKEN_2FA,
     MARCADA,
     QUARENTENA,
     REJECTED,
@@ -200,7 +200,7 @@ def _finish(decision: Decision, context: EvaluationContext, config: EngineConfig
     if coercion and has_contact and consent_ok:
         decision.challenge_type = TRUSTED_CONTACT_APPROVAL
     else:
-        decision.challenge_type = BIOMETRIC_2FA
+        decision.challenge_type = CUSTOMER_TOKEN_2FA
 
     decision.friction_script_key = CONFIRM_IDENTITY
     for code in config.params["friction"]["precedencia"]:
