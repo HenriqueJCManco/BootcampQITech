@@ -69,16 +69,18 @@ def _precise(geolocation, max_accuracy_m: float) -> bool:
 def g2_impossible_travel(facts: Facts) -> RuleHit | None:
     location = facts.pix.geolocation
     params = facts.config.rule("G2")
-    if location is None or not _precise(location, params["precisao_max_m"]):
+    max_accuracy = params.get("precisao_max_m", 50000)
+    if location is None or not _precise(location, max_accuracy):
         return None
 
-    oldest = facts.now - timedelta(hours=params["idade_max_horas"])
+    max_age_h = params.get("idade_max_horas", 24)
+    oldest = facts.now - timedelta(hours=max_age_h)
     previous = [
         pix
         for pix in facts.payer.history
         if pix.geolocation is not None
         and oldest <= pix.transaction_date <= facts.now
-        and _precise(pix.geolocation, params["precisao_max_m"])
+        and _precise(pix.geolocation, max_accuracy)
     ]
     if not previous:
         return None
@@ -87,13 +89,22 @@ def g2_impossible_travel(facts: Facts) -> RuleHit | None:
     distance = haversine_km(
         last.geolocation.latitude, last.geolocation.longitude, location.latitude, location.longitude
     )
-    seconds = max((facts.now - last.transaction_date).total_seconds(), params["intervalo_min_s"])
+    min_interval = params.get("intervalo_min_s", 60)
+    seconds = max((facts.now - last.transaction_date).total_seconds(), min_interval)
     speed = distance / (seconds / 3600)
 
-    for level in params["niveis"]:
-        if distance >= level["distancia_min_km"] and speed >= level["velocidade_kmh"]:
+    niveis = params.get("niveis")
+    if niveis:
+        for level in niveis:
+            if distance >= level["distancia_min_km"] and speed >= level["velocidade_kmh"]:
+                evidence = {"distance_km": round(distance, 1), "speed_kmh": round(speed)}
+                return RuleHit("G2", level["pontos"], evidence, floor=level.get("piso", False))
+    elif "velocidade_kmh" in params:
+        min_dist = params.get("distancia_min_km", 100)
+        speed_limit = params["velocidade_kmh"]
+        if distance >= min_dist and speed >= speed_limit:
             evidence = {"distance_km": round(distance, 1), "speed_kmh": round(speed)}
-            return RuleHit("G2", level["pontos"], evidence, floor=level.get("piso", False))
+            return RuleHit("G2", params.get("pontos", 35), evidence)
     return None
 
 

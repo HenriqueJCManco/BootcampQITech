@@ -53,7 +53,10 @@ class DbUtils:
 
     @staticmethod
     def database_url() -> str:
-        return environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+        url = environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return url
 
     @staticmethod
     def rollback() -> None:

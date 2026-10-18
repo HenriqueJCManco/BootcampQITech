@@ -275,7 +275,6 @@ class PixShadowResultModel(Base):
     analysis = relationship("PixAnalysisModel", back_populates="shadow_results")
 
 
-# Aliases para compatibilidade de nomenclatura
 PixAnalysis = PixAnalysisModel
 PixRuleResult = PixRuleResultModel
 PixFeedback = PixFeedbackModel

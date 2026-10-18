@@ -5,6 +5,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
+    Numeric,
     BigInteger,
     String,
     UniqueConstraint,
@@ -47,6 +49,7 @@ class Account(Base):
     customer = relationship("Customer", back_populates="account")
     blocked_mccs = relationship("BlockedMCC", back_populates="account", cascade="all, delete-orphan")
     trusted_contacts = relationship("TrustedContact", back_populates="account", cascade="all, delete-orphan")
+    trusted_locations = relationship("TrustedLocation", back_populates="account", cascade="all, delete-orphan")
 
 
 class Merchant(Base):
@@ -87,6 +90,24 @@ class TrustedContact(Base):
     approval_consent_at = Column(DateTime(timezone=True))
 
     account = relationship("Account", back_populates="trusted_contacts")
+
+
+class TrustedLocation(Base):
+    __tablename__ = "trusted_location"
+    __table_args__ = (
+        CheckConstraint("radius_meters > 0", name="chk_radius_positive"),
+    )
+
+    id = Column(BigInteger, primary_key=True)
+    location_key = Column(UUID(as_uuid=True), nullable=False, unique=True, server_default=text("gen_random_uuid()"))
+    account_id = Column(BigInteger, ForeignKey("account.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    latitude = Column(Numeric(10, 7), nullable=False)
+    longitude = Column(Numeric(10, 7), nullable=False)
+    radius_meters = Column(Integer, nullable=False, default=500)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    account = relationship("Account", back_populates="trusted_locations")
 
 
 class BankTransaction(Base):

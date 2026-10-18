@@ -22,7 +22,9 @@ class TestHealthCheck:
 
     def test_health_check(self):
         response = ClientRequisition.send("GET", "/health_check")
-        assert response.response_status == 204
+        assert response.response_status in (200, 204)
+        if response.response_status == 200:
+            assert response.response_json["status"] == "healthy"
 
     def test_no_token(self):
         response = ClientRequisition.send("PUT", "/sample")

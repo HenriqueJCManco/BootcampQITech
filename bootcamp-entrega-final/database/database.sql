@@ -47,6 +47,18 @@ CREATE TABLE trusted_contact (
     CONSTRAINT uq_trusted_contact_address UNIQUE (account_id, address)
 );
 
+CREATE TABLE trusted_location (
+    id BIGSERIAL PRIMARY KEY,
+    location_key UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    account_id BIGINT NOT NULL REFERENCES account(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    latitude NUMERIC(10, 7) NOT NULL,
+    longitude NUMERIC(10, 7) NOT NULL,
+    radius_meters INTEGER NOT NULL DEFAULT 500,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_radius_positive CHECK (radius_meters > 0)
+);
+
 CREATE TABLE bank_transaction (
     id BIGSERIAL PRIMARY KEY,
     transaction_key UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),

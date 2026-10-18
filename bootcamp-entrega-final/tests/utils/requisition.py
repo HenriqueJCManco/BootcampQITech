@@ -79,5 +79,3 @@ class BaseConnectorResponse:
             self.response_json = json.loads(self.response_content)
         except Exception as ex:
             print(ex)
-            ...
-            # logger warning
