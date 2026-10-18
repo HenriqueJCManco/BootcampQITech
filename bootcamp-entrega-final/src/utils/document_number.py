@@ -79,4 +79,3 @@ def mask_document(document: str | None) -> str:
     if len(document) > 4:
         return f"***{document[-4:]}"
     return "***"
-

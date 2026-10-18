@@ -130,5 +130,3 @@ class PixLockTimeout(QIException):
             "The payer is busy. Retry the request with the same Pix id.",
             "O pagador está ocupado. Tente novamente com o mesmo id do Pix.",
         )
-
-

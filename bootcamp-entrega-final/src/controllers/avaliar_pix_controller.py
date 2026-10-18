@@ -1,25 +1,48 @@
 import hashlib
 import json
-import re
-from datetime import datetime, timezone, timedelta
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
+
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from controllers.base_controller import BaseController
+from domain import (
+    APPROVED,
+    REJECTED,
+    TWO_FACTOR_REQUIRED,
+    EngineConfig,
+    EvaluationContext,
+    Geolocation,
+    Interaction,
+    PixRequest,
+    apply_second_factor,
+    evaluate,
+)
+from domain.engine import BLOCKED_FOR_SAFETY
+from domain.identity import destination_key, document_hash, mask_document, only_digits
 from dtos import PixAnalysisDTO
 from errors import (
     PixAnalysisNotFound,
     PixIdempotencyConflict,
     PixInvalidAmount,
-    PixInvalidChannel,
     PixInvalidDocument,
     PixInvalidTransactionDate,
+    PixLockTimeout,
 )
-from models.fraud import PixAnalysis
+from models import Account
 from repositories import FraudRepository
-from utils.document_number import is_valid_cpf, is_valid_cnpj, is_valid_document_number, mask_document
+from utils.document_number import is_valid_document_number
 
 
-VALID_CHANNELS = {"internet", "celular", "computador", "tablet", "relogio"}
-NIGHT_LIMIT_CENTS = 100000  # R$ 1.000,00
+CHANNEL_ALIASES = {"app": "celular"}
+HASH_EXCLUDED_FIELDS = ("second_factor_passed", "friction_answer")
+MAX_FUTURE = timedelta(minutes=5)
+LOCK_TIMEOUT = "2s"
+OWN_PARTICIPANT = "BANCO60"
+OWN_BRANCH = "0001"
+ESCALATION_RULE = "ESCALATION"
 
 
 class AvaliarPixController(BaseController):
@@ -27,197 +50,73 @@ class AvaliarPixController(BaseController):
         super().__init__(__name__)
         self.repository = FraudRepository(self.session)
 
-    @staticmethod
-    def _request_hash(payload: dict) -> str:
-        # A prova de 2FA não entra no request_hash
-        sanitized = dict(payload)
-        sanitized.pop("second_factor_passed", None)
-        canonical = json.dumps(sanitized, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
     def avaliar(self, payload: dict) -> tuple[dict, bool]:
-        pix_id = payload["id"]
-        amount_cents = payload["amount"]
-        if not isinstance(amount_cents, int) or amount_cents < 1:
-            raise PixInvalidAmount()
-
-        tx_date = self._parse_and_validate_date(payload["transaction_date"])
-
-        # Valida documentos se presentes
-        self._validate_documents(payload)
-
-        # Valida canal se presente
-        source = payload.get("source") or {}
-        channel = source.get("channel")
-        if channel is not None and channel not in VALID_CHANNELS:
-            raise PixInvalidChannel()
-
+        payload = self._normalize(payload)
+        transaction_date = self._validate(payload)
         request_hash = self._request_hash(payload)
-        source_account = payload.get("source_account") or {}
-        dest_account = payload.get("destination_account") or {}
 
-        source_doc = source_account.get("document_number") or ""
-        source_hash = hashlib.sha256(source_doc.encode("utf-8")).hexdigest() if source_doc else hashlib.sha256(pix_id.encode("utf-8")).hexdigest()
-        dest_doc = dest_account.get("document_number") or ""
-        destination_key = hashlib.sha256(dest_doc.encode("utf-8")).hexdigest() if dest_doc else "unknown_destination"
+        source_account = self._find_account(payload["source_account"])
+        destination_account = self._find_account(payload["destination_account"])
+        pix = self._to_domain(payload, transaction_date)
+        if pix.has_trusted_contact is None and source_account is not None:
+            pix = replace(pix, has_trusted_contact=self.repository.has_trusted_contact(source_account.id))
 
-        value_band = self._determine_value_band(amount_cents)
-
-        # 1. Reserva de Idempotência
+        source_hash = document_hash(pix.source_document)
         analysis, is_new = self.repository.reserve_analysis(
-            pix_id=pix_id,
+            pix_id=pix.pix_id,
             request_hash=request_hash,
-            amount_cents=amount_cents,
-            transaction_date=tx_date,
+            type=pix.type,
+            amount_cents=pix.amount_cents,
+            transaction_date=pix.transaction_date,
+            source_account_id=source_account.id if source_account is not None else None,
             source_hash=source_hash,
-            destination_key=destination_key,
-            source_masked=mask_document(source_doc),
-            destination_masked=mask_document(dest_doc),
-            value_band=value_band,
-            device_id=source.get("device_id"),
-            channel=channel,
+            source_masked=mask_document(pix.source_document),
+            destination_account_id=destination_account.id if destination_account is not None else None,
+            destination_key=pix.destination_key,
+            destination_masked=mask_document(pix.destination_document),
+            device_id=pix.device_id,
+            channel=pix.channel,
+            latitude=pix.geolocation.latitude if pix.geolocation is not None else None,
+            longitude=pix.geolocation.longitude if pix.geolocation is not None else None,
         )
 
         if not is_new:
             if analysis.request_hash != request_hash:
                 raise PixIdempotencyConflict()
+            return self._replay(analysis, payload), True
 
-            # Fluxo de 2FA concluído
-            if payload.get("second_factor_passed") is True and analysis.status == "two_factor_required":
-                analysis.status = "approved"
-                analysis.second_factor_at = datetime.now(timezone.utc)
-                self.session.commit()
-
-            return PixAnalysisDTO.to_dict(analysis), True
-
-        # 2. Trava de linha por pagador
-        self.repository.lock_payer(source_hash)
-
-        # 3. Execução das Regras e Cálculo de Score
-        rules_fired = []
-        score = 0
-        floor_applied = None
-        status = "approved"
-        challenge_type = None
-        friction_script_key = None
-        customer_message_key = None
-        payer_class = self._determine_payer_class(source_account)
-
-        # Regras Eliminatórias (E1 a E4)
-        mcc = dest_account.get("mcc")
-        if mcc and mcc == "7995":
-            rules_fired.append({"code": "E1", "points": 0, "evidence": {"mcc": mcc, "reason": "blocked_mcc"}})
-            status = "rejected"
-            customer_message_key = "BLOCKED_FOR_SAFETY"
-
-        dest_flag = self.repository.get_destination_flag(destination_key)
-        if dest_flag and dest_flag.status == "MARCADA" and payload.get("type") != "refund":
-            rules_fired.append({"code": "E2", "points": 0, "evidence": {"status": "MARCADA"}})
-            status = "rejected"
-            customer_message_key = "BLOCKED_FOR_SAFETY"
-
-        if dest_flag and dest_flag.status == "QUARENTENA":
-            rules_fired.append({"code": "E3", "points": 0, "evidence": {"status": "QUARENTENA"}})
-            status = "rejected"
-            customer_message_key = "BLOCKED_FOR_SAFETY"
-
-        # E4: Limite noturno para PF ou MEI
-        if status != "rejected" and payer_class in ("PF", "MEI"):
-            hour = tx_date.hour
-            is_night = hour >= 20 or hour < 6
-            if is_night and amount_cents > NIGHT_LIMIT_CENTS:
-                rules_fired.append({
-                    "code": "E4",
-                    "points": 0,
-                    "evidence": {"amount_cents": amount_cents, "limit_cents": NIGHT_LIMIT_CENTS, "hour": hour},
-                })
-                status = "rejected"
-                customer_message_key = "BLOCKED_FOR_SAFETY"
-
-        # Regras de Pontuação Comportamental (se não rejeitado por eliminatória)
-        if status != "rejected":
-            # R1: Acesso remoto ou ligação em andamento
-            if source.get("remote_access_detected") is True:
-                score += 30
-                rules_fired.append({"code": "R1", "points": 30, "evidence": {"remote_access": True}})
-                floor_applied = "R1"
-            if source.get("call_in_progress") is True:
-                score += 30
-                rules_fired.append({"code": "R1", "points": 30, "evidence": {"call_in_progress": True}})
-                floor_applied = "R1"
-
-            # K2: Relógio com valor acima de R$ 200,00
-            if channel == "relogio" and amount_cents > 20000:
-                rules_fired.append({"code": "K2", "points": 0, "evidence": {"channel": "relogio", "amount_cents": amount_cents}})
-                floor_applied = "K2"
-
-            # V1: Rajada de Pix nos últimos 10 minutos
-            since_10m = tx_date - timedelta(minutes=10)
-            recent_count = self.repository.get_recent_payer_transactions_count(source_hash, since_10m)
-            if recent_count >= 5:
-                score += 40
-                rules_fired.append({"code": "V1", "points": 40, "evidence": {"count_10m": recent_count}})
-            elif recent_count >= 3:
-                score += 25
-                rules_fired.append({"code": "V1", "points": 25, "evidence": {"count_10m": recent_count}})
-
-            # C1: Beneficiário novo
-            score += 15
-            rules_fired.append({"code": "C1", "points": 15, "evidence": {"is_new_recipient": True}})
-
-            # Pisos e Decisão por Faixa de Valor
-            thresholds = self._get_thresholds(value_band)
-            if score >= thresholds["reject"]:
-                status = "rejected"
-                customer_message_key = "BLOCKED_FOR_SAFETY"
-            elif score >= thresholds["two_factor"] or floor_applied is not None:
-                status = "two_factor_required"
-                customer_message_key = "CONFIRM_IDENTITY"
-
-                # 2FA Social & Quebra de Feitiço
-                if source.get("call_in_progress") is True:
-                    challenge_type = "TRUSTED_CONTACT_APPROVAL"
-                    friction_script_key = "CALL_COACHING_CHECK"
-                else:
-                    challenge_type = "BIOMETRIC_2FA"
-                    friction_script_key = "CONFIRM_IDENTITY"
-
-        # 4. Atualização e Persistência do resultado
-        has_trusted_contact = bool(source_account.get("has_trusted_contact"))
-        notify_trusted_contact = has_trusted_contact and status in ("two_factor_required", "rejected")
-
-        analysis.status = status
-        analysis.score = score
-        analysis.challenge_type = challenge_type
-        analysis.friction_script_key = friction_script_key
-        analysis.notify_trusted_contact = notify_trusted_contact
-        analysis.customer_message_key = customer_message_key
-
-        # Anexa dados transitórios para o DTO
-        analysis._floor_applied = floor_applied
-        analysis._payer_class = payer_class
-        analysis._destination_status = dest_flag.status if dest_flag else "NORMAL"
-
-        self.repository.save_rule_results(analysis.id, rules_fired)
-
-        if notify_trusted_contact and analysis.source_account_id:
-            self.repository.notify_trusted_contacts(analysis.id, analysis.source_account_id)
-
+        self._lock_payer(source_hash)
+        config = self._active_config(pix.transaction_date)
+        context = EvaluationContext(
+            pix=pix,
+            payer=self.repository.load_payer_snapshot(source_hash, source_account, pix.transaction_date, pix.pix_id),
+            destination=self.repository.load_destination_snapshot(
+                pix.destination_key, pix.destination_document, destination_account, pix.transaction_date
+            ),
+            device=self.repository.load_device_snapshot(pix.device_id, source_hash, pix.transaction_date),
+        )
+        decision = evaluate(context, config)
+        self.repository.persist_analysis(
+            analysis,
+            decision,
+            context,
+            source_account.id if source_account is not None else None,
+            destination_account.id if destination_account is not None else None,
+        )
         self.session.commit()
         return PixAnalysisDTO.to_dict(analysis), False
 
     def get_by_id(self, pix_id: str) -> dict:
         analysis = self.repository.get_analysis_by_pix_id(pix_id)
-        if analysis is None:
+        if analysis is None or analysis.status is None:
             raise PixAnalysisNotFound()
         return PixAnalysisDTO.to_dict(analysis)
 
     def register_feedback(self, payload: dict) -> dict:
-        feedback = self.repository.save_feedback(
-            transaction_id=payload["transaction_id"],
-            is_fraud=payload["is_fraud"],
-            reason=payload.get("reason"),
-        )
+        if self.repository.get_analysis_by_pix_id(payload["transaction_id"]) is None:
+            raise PixAnalysisNotFound()
+        feedback = self.repository.add_feedback(payload["transaction_id"], payload["is_fraud"], payload.get("reason"))
+        self.session.commit()
         return {
             "id": feedback.id,
             "transaction_id": feedback.transaction_id,
@@ -226,64 +125,144 @@ class AvaliarPixController(BaseController):
             "created_at": feedback.created_at.isoformat(),
         }
 
-    def _parse_and_validate_date(self, date_str: str) -> datetime:
-        try:
-            dt = datetime.fromisoformat(date_str)
-        except Exception:
-            raise PixInvalidTransactionDate("timezone")
+    def _replay(self, analysis, payload: dict) -> dict:
+        if not payload.get("second_factor_passed") or analysis.status != TWO_FACTOR_REQUIRED:
+            return PixAnalysisDTO.to_dict(analysis)
+        if analysis.second_factor_at is not None:
+            return PixAnalysisDTO.to_dict(analysis)
 
-        if dt.tzinfo is None:
-            raise PixInvalidTransactionDate("timezone")
+        config_row = self.repository.get_config(analysis.engine_version)
+        config = EngineConfig(version=config_row.version, params=config_row.params)
+        has_consented_contact = analysis.source_account_id is not None and self.repository.has_consented_contact(
+            analysis.source_account_id
+        )
+        answer = payload.get("friction_answer")
+        status, challenge_type = apply_second_factor(
+            analysis.status, analysis.friction_script_key, answer, has_consented_contact, config
+        )
 
         now = datetime.now(timezone.utc)
-        if dt > now + timedelta(minutes=5):
-            raise PixInvalidTransactionDate("future")
+        if answer is not None:
+            self.repository.record_friction_answer(analysis, answer, now)
+        if status == APPROVED:
+            self.repository.mark_second_factor(analysis, now)
+        else:
+            self.repository.add_rule_result(
+                analysis,
+                ESCALATION_RULE,
+                {"from": analysis.status, "to": status, "friction_answer": answer, "challenge_type": challenge_type},
+            )
 
-        return dt
+        metadata = dict(analysis.metadata_)
+        if status == APPROVED:
+            metadata["customer_message_key"] = None
+        elif status == REJECTED:
+            metadata["customer_message_key"] = BLOCKED_FOR_SAFETY
+        if challenge_type is not None:
+            analysis.challenge_type = challenge_type
+            metadata["challenge_type"] = challenge_type
+        analysis.status = status
+        analysis.metadata_ = metadata
+        self.session.commit()
+        return PixAnalysisDTO.to_dict(analysis)
 
-    def _validate_documents(self, payload: dict) -> None:
-        source_account = payload.get("source_account") or {}
-        src_doc = source_account.get("document_number")
-        if src_doc and not is_valid_document_number(src_doc):
-            raise PixInvalidDocument("source_account.document_number")
+    @staticmethod
+    def _normalize(payload: dict) -> dict:
+        source = payload.get("source")
+        if not source or source.get("channel") not in CHANNEL_ALIASES:
+            return payload
+        return {**payload, "source": {**source, "channel": CHANNEL_ALIASES[source["channel"]]}}
 
-        dest_account = payload.get("destination_account") or {}
-        dest_doc = dest_account.get("document_number")
-        if dest_doc and not is_valid_document_number(dest_doc):
-            raise PixInvalidDocument("destination_account.document_number")
+    @staticmethod
+    def _validate(payload: dict) -> datetime:
+        amount = payload["amount"]
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 1:
+            raise PixInvalidAmount()
 
-    def _determine_value_band(self, amount_cents: int) -> str:
-        if amount_cents <= 20000:
-            return "A"
-        if amount_cents <= 100000:
-            return "B"
-        if amount_cents <= 500000:
-            return "C"
-        return "D"
+        try:
+            transaction_date = datetime.fromisoformat(payload["transaction_date"])
+        except ValueError:
+            raise PixInvalidTransactionDate("format") from None
+        if transaction_date.tzinfo is None:
+            raise PixInvalidTransactionDate("timezone")
+        if transaction_date > datetime.now(timezone.utc) + MAX_FUTURE:
+            raise PixInvalidTransactionDate("not_future")
 
-    def _get_thresholds(self, value_band: str) -> dict:
-        thresholds_map = {
-            "A": {"two_factor": 45, "reject": 85},
-            "B": {"two_factor": 35, "reject": 75},
-            "C": {"two_factor": 30, "reject": 65},
-            "D": {"two_factor": 25, "reject": 55},
-        }
-        return thresholds_map.get(value_band, {"two_factor": 30, "reject": 65})
+        for field in ("source_account", "destination_account"):
+            if not is_valid_document_number(payload[field]["document_number"]):
+                raise PixInvalidDocument(f"{field}.document_number")
 
-    def _determine_payer_class(self, source_account: dict) -> str:
-        doc = source_account.get("document_number") or ""
-        digits = re.sub(r"\D", "", doc)
-        if len(digits) == 11:
-            return "PF"
-        if len(digits) == 14:
-            owner = source_account.get("owner") or {}
-            name = (owner.get("name") or "").upper().strip()
-            # Vetos de PJ real
-            if any(suf in name for suf in ("LTDA", "EIRELI", "SLU", "EPP", "S/A", "S.A.")):
-                return "PJ"
-            # Reconhecimento MEI: CPF no fim do nome
-            match = re.search(r"(\d{11})$", name)
-            if match and is_valid_cpf(match.group(1)):
-                return "MEI"
-            return "PJ"
-        return "PF"
+        return transaction_date
+
+    @staticmethod
+    def _request_hash(payload: dict) -> str:
+        body = {key: value for key, value in payload.items() if key not in HASH_EXCLUDED_FIELDS}
+        canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(f"/pix/transaction\n{canonical}".encode("utf-8")).hexdigest()
+
+    def _find_account(self, data: dict) -> Account | None:
+        account_key = data.get("account_key")
+        if account_key is not None:
+            account = self.session.query(Account).filter(Account.account_key == UUID(account_key)).first()
+            if account is not None:
+                return account
+        return self.repository.get_account_by_document(only_digits(data["document_number"]))
+
+    @staticmethod
+    def _to_domain(payload: dict, transaction_date: datetime) -> PixRequest:
+        source = payload.get("source") or {}
+        source_account = payload["source_account"]
+        destination = payload["destination_account"]
+
+        geolocation = None
+        if source.get("geolocation") is not None:
+            geolocation = Geolocation(source["geolocation"]["latitude"], source["geolocation"]["longitude"])
+        interaction = None
+        if source.get("interaction") is not None:
+            raw = source["interaction"]
+            interaction = Interaction(
+                raw=raw,
+                is_robotic_movement=raw.get("is_robotic_movement"),
+                typing_cadence_std_ms=raw.get("typing_cadence_std_ms"),
+                session_idle_then_burst=raw.get("session_idle_then_burst"),
+            )
+
+        destination_document = only_digits(destination["document_number"])
+        return PixRequest(
+            pix_id=payload["id"],
+            amount_cents=payload["amount"],
+            transaction_date=transaction_date,
+            source_document=only_digits(source_account["document_number"]),
+            destination_document=destination_document,
+            destination_key=destination_key(
+                destination.get("participant", OWN_PARTICIPANT),
+                destination.get("branch", OWN_BRANCH),
+                destination.get("number") or destination.get("account_key", ""),
+                destination_document,
+            ),
+            type=payload.get("type", "payment"),
+            source_name=(source_account.get("owner") or {}).get("name"),
+            channel=source.get("channel"),
+            device_id=source.get("device_id"),
+            geolocation=geolocation,
+            remote_access_detected=source.get("remote_access_detected"),
+            call_in_progress=source.get("call_in_progress"),
+            has_trusted_contact=source_account.get("has_trusted_contact"),
+            interaction=interaction,
+        )
+
+    def _lock_payer(self, source_hash: str) -> None:
+        try:
+            self.session.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
+            self.repository.lock_payer(source_hash)
+        except DBAPIError as error:
+            sqlstate = getattr(error.orig, "pgcode", None) or getattr(error.orig, "sqlstate", None)
+            if sqlstate == "55P03":
+                raise PixLockTimeout() from error
+            raise
+
+    def _active_config(self, at: datetime) -> EngineConfig:
+        row = self.repository.get_active_config(at)
+        if row is None:
+            raise RuntimeError("fraude.engine_config has no version active for this date.")
+        return EngineConfig(version=row.version, params=row.params)

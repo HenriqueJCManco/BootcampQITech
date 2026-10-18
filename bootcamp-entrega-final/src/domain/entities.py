@@ -27,6 +27,14 @@ class Geolocation:
 
 
 @dataclass(frozen=True)
+class Interaction:
+    raw: dict = field(default_factory=dict)
+    is_robotic_movement: bool | None = None
+    typing_cadence_std_ms: float | None = None
+    session_idle_then_burst: bool | None = None
+
+
+@dataclass(frozen=True)
 class PixRequest:
     pix_id: str
     amount_cents: int
@@ -42,6 +50,7 @@ class PixRequest:
     remote_access_detected: bool | None = None
     call_in_progress: bool | None = None
     has_trusted_contact: bool | None = None
+    interaction: Interaction | None = None
 
 
 @dataclass(frozen=True)
@@ -176,8 +185,8 @@ class Decision:
     customer_message_key: str | None = None
     flag_changes: list[FlagChange] = field(default_factory=list)
 
-    def metadata(self, destination: DestinationSnapshot) -> dict:
-        reputation = destination.reputation
+    def metadata(self, context: "EvaluationContext") -> dict:
+        reputation = context.destination.reputation
         metadata = {
             "engine_version": self.engine_version,
             "score": self.score,
@@ -195,6 +204,8 @@ class Decision:
             "customer_message_key": self.customer_message_key,
             "inputs_missing": self.inputs_missing,
         }
+        if context.pix.interaction is not None:
+            metadata["inputs"] = {"interaction": context.pix.interaction.raw}
         if self.status == TWO_FACTOR_REQUIRED:
             metadata["challenge_type"] = self.challenge_type
             metadata["friction_script_key"] = self.friction_script_key

@@ -12,6 +12,7 @@ from domain.entities import (
     EvaluationContext,
     FlagChange,
     Geolocation,
+    Interaction,
     MoneyMovement,
     OpenFinanceProfile,
     PastPix,

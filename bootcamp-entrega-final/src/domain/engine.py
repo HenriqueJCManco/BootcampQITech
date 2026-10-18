@@ -1,5 +1,4 @@
-from domain import eliminatory_rules as eliminatory
-from domain import scoring_rules as scoring
+from domain.rules import channel, eliminatory, scoring
 from domain.config import EngineConfig
 from domain.entities import (
     APPROVED,
@@ -80,6 +79,7 @@ def evaluate(context: EvaluationContext, config: EngineConfig) -> Decision:
         decision.rules_fired = blocking
     else:
         hits = eliminatory_hits + _score_hits(facts, destination_status, trusted, trusted_evidence)
+        hits, escalated_status = channel.r2_escalation(hits, config)
         decision.rules_fired = hits
         decision.score = max(0, sum(hit.points for hit in hits))
         decision.floor_applied = _floors(hits, band["faixa"], config)
@@ -88,6 +88,9 @@ def evaluate(context: EvaluationContext, config: EngineConfig) -> Decision:
             decision.status = REJECTED
         elif decision.score >= band["dois_fatores"] or decision.floor_applied:
             decision.status = TWO_FACTOR_REQUIRED
+
+        if escalated_status == REJECTED or (escalated_status and decision.status == APPROVED):
+            decision.status = escalated_status
 
     decision.inputs_missing = facts.inputs_missing
     _finish(decision, context, config)
@@ -103,9 +106,9 @@ def _score_hits(facts: Facts, destination_status: str, trusted: bool, trusted_ev
         scoring.d2_shared_device(facts),
         scoring.g1_distance_from_usual(facts),
         scoring.g2_impossible_travel(facts),
-        scoring.g4_missing_geolocation(facts),
-        scoring.k1_unusual_channel(facts),
-        scoring.k2_watch(facts),
+        channel.g4_missing_geolocation(facts),
+        channel.k1_unusual_channel(facts),
+        channel.k2_watch(facts),
         c1,
         scoring.c2_destination_age(facts),
         scoring.c5_many_payers(facts),
@@ -119,7 +122,8 @@ def _score_hits(facts: Facts, destination_status: str, trusted: bool, trusted_ev
         scoring.v1_burst(facts),
         scoring.v2_new_destinations(facts),
         scoring.o1_new_source_account(facts),
-        scoring.r1_remote_or_call(facts),
+        channel.r1_remote_or_call(facts),
+        channel.r2_desktop_automation(facts),
         scoring.f1_amount_vs_income(facts),
         scoring.f2_balance_drain(facts),
         scoring.f3_pass_through(facts, c1 is not None),

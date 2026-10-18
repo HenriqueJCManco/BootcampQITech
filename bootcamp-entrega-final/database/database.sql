@@ -293,6 +293,11 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
         "timezone_regra": "America/Sao_Paulo",
         "teto_noturno_pf_centavos": 100000,
         "histograma_horas_tolerancia": 0.05,
+        "segmentos_canal": {
+            "mobile": ["celular", "tablet"],
+            "desktop": ["internet", "computador"],
+            "relogio": ["relogio"]
+        },
         "faixas": [
             {"faixa": "A", "ate_centavos": 20000, "dois_fatores": 45, "reprova": 85},
             {"faixa": "B", "ate_centavos": 100000, "dois_fatores": 35, "reprova": 75},
@@ -359,6 +364,14 @@ INSERT INTO fraude.engine_config (version, active_from, params) VALUES (
             "V2": {"janela_min": 60, "min_destinos": 3, "pontos": 30},
             "O1": {"menos_de_dias": 30, "pontos": 10},
             "R1": {"pontos_acesso_remoto": 30, "pontos_ligacao": 30},
+            "R2": {
+                "canais": ["internet", "computador"],
+                "pontos": 40,
+                "min_sinais": 1,
+                "cadencia_digitacao_max_std_ms": 15,
+                "escalar_com": ["V1", "C1"],
+                "escalar_para": "rejected"
+            },
             "F1": {"janela_renda_dias": 30, "faixas": [{"acima_x": 2, "pontos": 25}, {"acima_x": 1, "pontos": 15}]},
             "F2": {"proporcao_min": 0.8, "pontos": 15},
             "H2": {"min_pix": 3, "meses_distintos": 3, "janela_meses": 3, "tolerancia": 0.2, "pontos": -25}

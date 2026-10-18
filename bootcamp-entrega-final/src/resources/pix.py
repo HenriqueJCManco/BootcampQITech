@@ -3,11 +3,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from controllers import AvaliarPixController
+from utils.pix_validation import pix_schema_error
 from utils.schema_handler import SchemaHandler
 
 
 class PixResource:
-    @SchemaHandler.validate("post_pix_transaction.json")
+    @SchemaHandler.validate("post_pix_transaction.json", error_mapper=pix_schema_error)
     def on_post_transaction(self, payload: dict) -> JSONResponse:
         result, replayed = AvaliarPixController().avaliar(payload)
         return JSONResponse(
@@ -23,7 +24,7 @@ class PixResource:
             status_code=status.HTTP_200_OK,
         )
 
-    @SchemaHandler.validate("post_pix_feedback.json")
+    @SchemaHandler.validate("post_pix_feedback.json", error_mapper=pix_schema_error)
     def on_post_feedback(self, payload: dict) -> JSONResponse:
         result = AvaliarPixController().register_feedback(payload)
         return JSONResponse(

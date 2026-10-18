@@ -88,35 +88,6 @@ def g2_impossible_travel(facts: Facts) -> RuleHit | None:
     return RuleHit("G2", params["pontos"], evidence)
 
 
-def g4_missing_geolocation(facts: Facts) -> RuleHit | None:
-    params = facts.config.rule("G4")
-    if facts.pix.geolocation is not None or facts.pix.channel not in params["canais"]:
-        return None
-    return RuleHit("G4", params["pontos"], {"channel": facts.pix.channel})
-
-
-def k1_unusual_channel(facts: Facts) -> RuleHit | None:
-    channel = facts.pix.channel
-    if channel is None:
-        facts.missing("source.channel")
-        return None
-    params = facts.config.rule("K1")
-    past = [pix for pix in facts.history_since(timedelta(days=params["janela_dias"])) if pix.channel is not None]
-    if len(past) < params["min_transacoes"]:
-        return None
-    share = sum(1 for pix in past if pix.channel == channel) / len(past)
-    if share >= params["proporcao_max"]:
-        return None
-    return RuleHit("K1", params["pontos"], {"channel": channel, "share": round(share, 3)})
-
-
-def k2_watch(facts: Facts) -> RuleHit | None:
-    params = facts.config.rule("K2")
-    if facts.pix.channel != params["canal"] or facts.pix.amount_cents <= params["acima_centavos"]:
-        return None
-    return RuleHit("K2", 0, {"channel": facts.pix.channel}, floor=True)
-
-
 def c1_new_beneficiary(facts: Facts) -> RuleHit | None:
     if not facts.is_new_destination:
         return None
@@ -279,25 +250,6 @@ def o1_new_source_account(facts: Facts) -> RuleHit | None:
     if age_days >= params["menos_de_dias"]:
         return None
     return RuleHit("O1", params["pontos"], {"source_age_days": int(age_days)})
-
-
-def r1_remote_or_call(facts: Facts) -> RuleHit | None:
-    params = facts.config.rule("R1")
-    points = 0
-    evidence = {}
-    if facts.pix.remote_access_detected is None:
-        facts.missing("source.remote_access_detected")
-    elif facts.pix.remote_access_detected:
-        points += params["pontos_acesso_remoto"]
-        evidence["remote_access_detected"] = True
-    if facts.pix.call_in_progress is None:
-        facts.missing("source.call_in_progress")
-    elif facts.pix.call_in_progress:
-        points += params["pontos_ligacao"]
-        evidence["call_in_progress"] = True
-    if points == 0:
-        return None
-    return RuleHit("R1", points, evidence, floor=True)
 
 
 def _valid_open_finance(facts: Facts):

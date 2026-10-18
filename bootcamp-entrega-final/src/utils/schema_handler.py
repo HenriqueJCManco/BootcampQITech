@@ -34,7 +34,7 @@ class SchemaCache:
 
 class SchemaHandler:
     @staticmethod
-    def validate(schema_file_name: str):
+    def validate(schema_file_name: str, error_mapper=None):
         def decorator_validate(func):
             @functools.wraps(func)
             def wrapper_validate(*args, **kwargs):
@@ -50,6 +50,8 @@ class SchemaHandler:
                 try:
                     validate(kwargs["payload"], schema, resolver=resolver)
                 except ValidationError as error:
+                    if error_mapper is not None:
+                        raise error_mapper(error) from error
                     raise InvalidSchema(
                         "Request validation failed.",
                         [describe_schema_error(error)],
