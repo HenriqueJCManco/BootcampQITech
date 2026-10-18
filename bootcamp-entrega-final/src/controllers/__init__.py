@@ -1,3 +1,5 @@
 from controllers.account_controller import AccountController
+from controllers.avaliar_pix_controller import AvaliarPixController
 from controllers.customer_controller import CustomerController
 from controllers.transaction_controller import TransactionController
+

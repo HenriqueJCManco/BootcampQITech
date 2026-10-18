@@ -9,7 +9,7 @@ from middlewares import (
     register_request_logger_middleware,
     register_session_manager_middleware,
 )
-from resources import AccountResource, CustomerResource, HealthCheckResource, TransferResource
+from resources import AccountResource, CustomerResource, HealthCheckResource, PixResource, TransferResource
 from utils.logger import setup_logging
 
 
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     customer = CustomerResource()
     account = AccountResource()
     transfer = TransferResource()
+    pix = PixResource()
 
     application.add_api_route("/", health.on_get_home, methods=["GET"])
     application.add_api_route("/health_check", health.on_get_health_check, methods=["GET"])
@@ -58,6 +59,9 @@ def create_app() -> FastAPI:
         account.on_get_statement,
         methods=["GET"],
     )
+    application.add_api_route("/pix/transaction", pix.on_post_transaction, methods=["POST"])
+    application.add_api_route("/pix/transaction/{id}", pix.on_get_transaction, methods=["GET"])
+    application.add_api_route("/pix/feedback", pix.on_post_feedback, methods=["POST"])
 
     register_error_handlers(application)
     return application

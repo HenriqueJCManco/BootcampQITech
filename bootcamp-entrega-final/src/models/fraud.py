@@ -253,6 +253,17 @@ class PixShadowResultModel(Base):
     )
     shadow_score = Column(Numeric(7, 4), nullable=False)
     model_version = Column(String(50), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
     analysis = relationship("PixAnalysisModel", back_populates="shadow_results")
+
+
+# Aliases para compatibilidade de nomenclatura
+PixAnalysis = PixAnalysisModel
+PixRuleResult = PixRuleResultModel
+PixFeedback = PixFeedbackModel
+DeviceSeen = DeviceSeenModel
+DestinationFlag = DestinationFlagModel
+DestinationReputation = DestinationReputationModel
+OfPayerProfile = OfPayerProfileModel
+EngineConfig = EngineConfigModel
+PixShadowResult = PixShadowResultModel
+

@@ -66,3 +66,17 @@ def is_valid_document_number(document_number: str) -> bool:
     if len(digits) == CNPJ_LENGTH:
         return is_valid_cnpj(document_number)
     return False
+
+
+def mask_document(document: str | None) -> str:
+    if not document:
+        return "***"
+    digits = "".join(ch for ch in document if ch.isdigit())
+    if len(digits) == 11:
+        return f"***.***.{digits[6:9]}-**"
+    if len(digits) == 14:
+        return f"**.***.***/{digits[8:12]}-**"
+    if len(document) > 4:
+        return f"***{document[-4:]}"
+    return "***"
+

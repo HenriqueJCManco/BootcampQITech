@@ -1,0 +1,109 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "amount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "transaction_date": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": ["payment", "refund"]
+    },
+    "second_factor_passed": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": ["internet", "celular", "computador", "tablet", "relogio"]
+        },
+        "device_id": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "geolocation": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "lon": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "remote_access_detected": {
+          "type": "boolean"
+        },
+        "call_in_progress": {
+          "type": "boolean"
+        },
+        "interaction": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_account": {
+      "type": "object",
+      "properties": {
+        "account_key": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "document_number": {
+          "type": "string"
+        },
+        "has_trusted_contact": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "maxLength": 255 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "destination_account": {
+      "type": "object",
+      "properties": {
+        "account_key": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "document_number": {
+          "type": "string"
+        },
+        "mcc": {
+          "type": "string",
+          "pattern": "^\\d{4}$"
+        },
+        "owner": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "maxLength": 255 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["id", "amount", "transaction_date"],
+  "additionalProperties": false
+}

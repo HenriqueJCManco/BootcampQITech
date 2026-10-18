@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "is_fraud": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 1000
+    }
+  },
+  "required": ["transaction_id", "is_fraud"],
+  "additionalProperties": false
+}

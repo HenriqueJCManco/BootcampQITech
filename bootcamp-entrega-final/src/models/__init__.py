@@ -9,13 +9,23 @@ from models.banking import (
     TrustedContact,
 )
 from models.fraud import (
+    DestinationFlag,
     DestinationFlagModel,
+    DestinationReputation,
     DestinationReputationModel,
+    DeviceSeen,
     DeviceSeenModel,
+    EngineConfig,
     EngineConfigModel,
+    OfPayerProfile,
     OfPayerProfileModel,
+    PixAnalysis,
     PixAnalysisModel,
+    PixFeedback,
     PixFeedbackModel,
+    PixRuleResult,
     PixRuleResultModel,
+    PixShadowResult,
     PixShadowResultModel,
 )
+
