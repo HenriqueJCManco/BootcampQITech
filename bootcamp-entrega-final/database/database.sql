@@ -154,9 +154,7 @@ CREATE TABLE fraude.pix_analysis (
     channel VARCHAR(20),
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
-    geo_accuracy_m INTEGER,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_pix_analysis_pix_id UNIQUE (pix_id),
     CONSTRAINT chk_pix_analysis_status
         CHECK (status IN ('approved', 'two_factor_required', 'rejected')),
@@ -165,8 +163,7 @@ CREATE TABLE fraude.pix_analysis (
     CONSTRAINT chk_pix_analysis_amount CHECK (amount_cents >= 1),
     CONSTRAINT chk_pix_analysis_channel
         CHECK (channel IN ('internet', 'celular', 'computador', 'tablet')),
-    CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL)),
-    CONSTRAINT chk_pix_analysis_geo_accuracy CHECK (geo_accuracy_m IS NULL OR geo_accuracy_m >= 0)
+    CONSTRAINT chk_pix_analysis_geolocation CHECK ((latitude IS NULL) = (longitude IS NULL))
 );
 CREATE INDEX ix_pix_analysis_source_date
     ON fraude.pix_analysis (source_hash, transaction_date DESC);

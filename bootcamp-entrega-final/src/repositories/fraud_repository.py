@@ -189,7 +189,7 @@ class FraudRepository:
     def _to_past_pix(analysis: PixAnalysisModel, has_transaction: bool) -> PastPix:
         geolocation = None
         if analysis.latitude is not None:
-            geolocation = Geolocation(analysis.latitude, analysis.longitude, analysis.geo_accuracy_m)
+            geolocation = Geolocation(analysis.latitude, analysis.longitude)
         standalone_approved = analysis.source_account_id is None and analysis.status == APPROVED
         return PastPix(
             transaction_date=analysis.transaction_date,

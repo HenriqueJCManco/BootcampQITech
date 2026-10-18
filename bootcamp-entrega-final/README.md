@@ -526,9 +526,7 @@ erDiagram
         varchar channel
         double latitude
         double longitude
-        integer geo_accuracy_m
         jsonb metadata
-        timestamptz created_at
     }
 
     pix_second_factor {
@@ -634,7 +632,7 @@ erDiagram
 | `public.ledger_entry` | Livro-razão contábil imutável (*append-only*) | `PK(id)`, `UK(entry_key)` | `CHECK (balance_after_cents >= 0)`, `ix_ledger_account_statement`, `ix_ledger_account_direction_kind_date` |
 | `public.notification_outbox` | Fila transacional de avisos (movimentações ou Pix barrados/retidos) | `PK(id)`, `UK(transaction_id, contact_id)`, `UK(analysis_id, contact_id)` | `CHECK ((transaction_id IS NOT NULL) <> (analysis_id IS NOT NULL))`, `idx_outbox_blocked_pix` |
 | `fraude.engine_config` | Parâmetros versionados do motor (`faixas`, `regras`, `flags`) | `PK(version)` | `CHECK (version >= 1)`, `ix_engine_config_active_from` |
-| `fraude.pix_analysis` | Fato transacional enxuto (22 colunas) e imutável da análise Pix | `PK(id)`, `UK(analysis_key)`, `UK(pix_id)` | 6 `CHECK` constraints (`status`, `value_band`, `type`, `amount_cents`, `channel`, `geo_accuracy_m`) + 3 índices compostos |
+| `fraude.pix_analysis` | Fato transacional enxuto (20 colunas) e imutável da análise Pix | `PK(id)`, `UK(analysis_key)`, `UK(pix_id)` | 6 `CHECK` constraints (`status`, `value_band`, `type`, `amount_cents`, `channel`, `geolocation`) + 3 índices compostos |
 | `fraude.pix_second_factor` | Tabela vertical 1:1 (14 colunas) exclusiva para desafios 2FA e custódia QI Tech | `PK(analysis_id)`, `UK(qi_pix_transfer_key)` | 4 `CHECK` constraints (`challenge_type`, `friction_answer`, `qi_transfer_status`, `qi_contact_type`) |
 | `fraude.pix_rule_result` | Regras acionadas na análise com pontuação bruta e `evidence` JSONB | `PK(id)`, `FK(analysis_id)` | `ix_pix_rule_result_analysis`, `ix_pix_rule_result_rule_code` |
 | `fraude.device_seen` | Vínculo `device_id × source_hash` (`first_seen`, `last_seen`, `tx_count`) | `PK(device_id, source_hash)` | `CHECK (tx_count >= 1)`, `CHECK (last_seen >= first_seen)`, `ix_device_seen_device_first_seen`, `ix_device_seen_device_last_seen` |

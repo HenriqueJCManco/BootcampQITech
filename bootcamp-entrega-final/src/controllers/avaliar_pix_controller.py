@@ -39,6 +39,7 @@ MAX_FUTURE = timedelta(minutes=5)
 LOCK_TIMEOUT = "2s"
 OWN_PARTICIPANT = "BANCO60"
 OWN_BRANCH = "0001"
+DEFAULT_MAX_GEO_ACCURACY_M = 5000
 
 
 class AvaliarPixController(BaseController):
@@ -58,6 +59,7 @@ class AvaliarPixController(BaseController):
             pix = replace(pix, has_trusted_contact=self.repository.has_trusted_contact(source_account.id))
 
         source_hash = document_hash(pix.source_document)
+        latitude, longitude = self._persisted_coordinates(pix)
         analysis, is_new = self.repository.reserve_analysis(
             pix_id=pix.pix_id,
             request_hash=request_hash,
@@ -70,9 +72,8 @@ class AvaliarPixController(BaseController):
             destination_key=pix.destination_key,
             device_id=pix.device_id,
             channel=pix.channel,
-            latitude=pix.geolocation.latitude if pix.geolocation is not None else None,
-            longitude=pix.geolocation.longitude if pix.geolocation is not None else None,
-            geo_accuracy_m=self._accuracy(pix),
+            latitude=latitude,
+            longitude=longitude,
         )
 
         if not is_new:
@@ -82,6 +83,8 @@ class AvaliarPixController(BaseController):
 
         self._lock_payer(source_hash)
         config = self._active_config(pix.transaction_date)
+        max_accuracy = config.rule("G2").get("precisao_max_m", DEFAULT_MAX_GEO_ACCURACY_M)
+        analysis.latitude, analysis.longitude = self._persisted_coordinates(pix, max_accuracy)
         context = EvaluationContext(
             pix=pix,
             payer=self.repository.load_payer_snapshot(source_hash, source_account, pix.transaction_date, pix.pix_id),
@@ -220,10 +223,14 @@ class AvaliarPixController(BaseController):
         )
 
     @staticmethod
-    def _accuracy(pix: PixRequest) -> int | None:
-        if pix.geolocation is None or pix.geolocation.accuracy_m is None:
-            return None
-        return round(pix.geolocation.accuracy_m)
+    def _persisted_coordinates(
+        pix: PixRequest, max_accuracy_m: float = DEFAULT_MAX_GEO_ACCURACY_M
+    ) -> tuple[float | None, float | None]:
+        if pix.geolocation is None:
+            return None, None
+        if pix.geolocation.accuracy_m is not None and pix.geolocation.accuracy_m > max_accuracy_m:
+            return None, None
+        return pix.geolocation.latitude, pix.geolocation.longitude
 
     def _lock_payer(self, source_hash: str) -> None:
         try:

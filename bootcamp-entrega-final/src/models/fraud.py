@@ -51,11 +51,10 @@ class PixAnalysisModel(Base):
         CheckConstraint("type IN ('payment', 'refund')", name="chk_pix_analysis_type"),
         CheckConstraint("amount_cents >= 1", name="chk_pix_analysis_amount"),
         CheckConstraint(
-            "channel IN ('internet', 'celular', 'computador', 'tablet', 'relogio')",
+            "channel IN ('internet', 'celular', 'computador', 'tablet')",
             name="chk_pix_analysis_channel",
         ),
         CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="chk_pix_analysis_geolocation"),
-        CheckConstraint("geo_accuracy_m IS NULL OR geo_accuracy_m >= 0", name="chk_pix_analysis_geo_accuracy"),
         Index("ix_pix_analysis_source_date", "source_hash", text("transaction_date DESC")),
         Index("ix_pix_analysis_destination_date", "destination_key", text("transaction_date DESC")),
         Index(
@@ -86,9 +85,7 @@ class PixAnalysisModel(Base):
     channel = Column(String(20))
     latitude = Column(Float)
     longitude = Column(Float)
-    geo_accuracy_m = Column(Integer)
     metadata_ = Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb"))
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     second_factor = relationship(
         "PixSecondFactorModel",
