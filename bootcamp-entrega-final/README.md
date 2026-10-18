@@ -391,27 +391,22 @@ A escalada nunca relaxa: um `rejected` não vira `approved`. Para quem integra o
 
 O motor não tem banco próprio: usa o PostgreSQL 16 do Banco 60+ ([`database/database.sql`](./database/database.sql)), organizado em **19 tabelas relacionais** divididas em dois schemas (`public` com **9 tabelas** do Core Bancário e `fraude` com **10 tabelas** do Motor Antifraude Pix). Ele **só lê** as tabelas do banco (`customer`, `account`, `blocked_mcc`, `merchant`, `trusted_contact`, `bank_transaction`, `ledger_entry`) e **escreve** no schema `fraude` e, para avisos, na `notification_outbox`. Nunca mexe em saldo nem em extrato.
 
-### Estrutura Completa do Banco de Dados (Diagrama ER — Schemas `public` e `fraude`)
+### Estrutura Completa do Banco de Dados (Diagramas ER — Schemas `public` e `fraude`)
+
+#### 1. Schema `public` (Core Bancário Banco 60+)
 
 ```mermaid
 erDiagram
-    customer ||--o| account : "1:1 possui"
-    account ||--o{ blocked_mcc : "1:N bloqueia MCC"
-    account ||--o{ trusted_contact : "1:N cadastra contato"
-    account ||--o{ trusted_location : "1:N cadastra local"
-    account ||--o{ bank_transaction : "1:N movimenta"
-    account ||--o{ ledger_entry : "1:N escritura"
-    account ||--o| of_payer_profile : "1:1 agrega Open Finance"
-    account ||--o{ pix_analysis : "1:N avalia origem/destino"
-    bank_transaction ||--|{ ledger_entry : "1:N gera partidas"
-    bank_transaction ||--o{ notification_outbox : "1:N notifica liquidado"
-    trusted_contact ||--o{ notification_outbox : "1:N recebe aviso"
-    trusted_contact ||--o{ pix_analysis : "1:N aprova 2FA Social"
-    engine_config ||--o{ pix_analysis : "1:N parametriza"
-    pix_analysis ||--o{ pix_rule_result : "1:N grava regras"
-    pix_analysis ||--o{ notification_outbox : "1:N notifica Pix retido"
-    pix_analysis ||--o{ pix_feedback : "1:N recebe rotulo"
-    pix_analysis ||--o{ pix_shadow_result : "1:N registra score sombra"
+    customer ||--o| account : possui
+    account ||--o{ blocked_mcc : bloqueia
+    account ||--o{ trusted_contact : avisa
+    account ||--o{ trusted_location : localiza
+    account ||--o{ bank_transaction : movimenta
+    account ||--o{ ledger_entry : registra
+    bank_transaction ||--|{ ledger_entry : gera
+    bank_transaction ||--o{ notification_outbox : dispara
+    trusted_contact ||--o{ notification_outbox : recebe
+    merchant }|..o{ bank_transaction : valida
 
     customer {
         bigserial id PK
@@ -426,8 +421,8 @@ erDiagram
         bigserial id PK
         uuid account_key UK
         bigint customer_id FK
-        bigint balance_cents "CHECK >= 0"
-        bigint transfer_limit_cents "CHECK >= 1"
+        bigint balance_cents
+        bigint transfer_limit_cents
         timestamptz created_at
     }
 
@@ -435,13 +430,13 @@ erDiagram
         bigserial id PK
         varchar document_number UK
         varchar name
-        char mcc "4 digitos"
+        char mcc
     }
 
     blocked_mcc {
         bigserial id PK
         bigint account_id FK
-        char mcc "UK (account_id, mcc)"
+        char mcc
         timestamptz created_at
     }
 
@@ -450,7 +445,7 @@ erDiagram
         uuid contact_key UK
         bigint account_id FK
         varchar name
-        varchar channel "SMS | EMAIL"
+        varchar channel
         varchar address
         timestamptz approval_consent_at
         timestamptz created_at
@@ -463,19 +458,20 @@ erDiagram
         varchar name
         numeric latitude
         numeric longitude
-        integer radius_meters "CHECK > 0"
+        integer radius_meters
+        timestamptz created_at
     }
 
     bank_transaction {
         bigserial id PK
         uuid transaction_key UK
         varchar idempotency_key UK
-        char request_hash "SHA-256 (64)"
-        varchar type "DEPOSIT | PURCHASE | TRANSFER"
+        char request_hash
+        varchar type
         bigint from_account_id FK
         bigint to_account_id FK
-        bigint amount_cents "CHECK >= 1"
-        bigint fee_cents "CHECK >= 0"
+        bigint amount_cents
+        bigint fee_cents
         timestamptz created_at
     }
 
@@ -484,27 +480,45 @@ erDiagram
         uuid entry_key UK
         bigint account_id FK
         bigint transaction_id FK
-        varchar direction "CREDIT | DEBIT"
-        varchar kind "DEPOSIT | PURCHASE | TRANSFER | FEE"
-        bigint amount_cents "CHECK >= 1"
+        varchar direction
+        varchar kind
+        bigint amount_cents
         char mcc
-        bigint balance_after_cents "CHECK >= 0"
+        bigint balance_after_cents
         timestamptz entry_datetime
     }
 
     notification_outbox {
         bigserial id PK
-        bigint transaction_id FK "XOR analysis_id"
-        bigint analysis_id FK "XOR transaction_id"
+        bigint transaction_id FK
+        bigint analysis_id FK
         bigint contact_id FK
-        varchar status "PENDING | SENT"
+        varchar status
         timestamptz created_at
         timestamptz sent_at
     }
+```
+
+#### 2. Schema `fraude` (Motor Antifraude Pix Seguro 60+)
+
+```mermaid
+erDiagram
+    engine_config ||--o{ pix_analysis : parametriza
+    account ||--o{ pix_analysis : avalia
+    account ||--o| of_payer_profile : agrega_open_finance
+    trusted_contact ||--o{ pix_analysis : aprova_2fa_social
+    pix_analysis ||--o{ pix_rule_result : grava_regras
+    pix_analysis ||--o{ notification_outbox : notifica_retencao
+    pix_analysis ||--o{ pix_feedback : recebe_rotulo
+    pix_analysis ||--o{ pix_shadow_result : registra_sombra
+    pix_analysis }o..|| device_seen : rastreia_aparelho
+    pix_analysis }o..|| destination_reputation : atualiza_reputacao
+    pix_analysis }o..o{ destination_flag : consulta_marcacao
+    pix_analysis }o..o| bet_destination : valida_cnpj_bet
 
     engine_config {
-        integer version PK "CHECK >= 1"
-        jsonb params "Pesos, faixas e flags"
+        integer version PK
+        jsonb params
         timestamptz active_from
         timestamptz created_at
     }
@@ -513,35 +527,37 @@ erDiagram
         bigserial id PK
         uuid analysis_key UK
         varchar pix_id UK
-        char request_hash "SHA-256 (64)"
-        varchar status "approved | two_factor_required | rejected"
+        char request_hash
+        varchar status
         integer score
-        char value_band "A | B | C | D"
+        char value_band
         integer engine_version FK
-        varchar type "payment | refund"
-        bigint amount_cents "CHECK >= 1"
+        varchar type
+        bigint amount_cents
         timestamptz transaction_date
         bigint source_account_id FK
-        char source_hash "SHA-256 (64)"
+        char source_hash
         varchar source_masked
-        varchar payer_class "PF | MEI | PJ"
+        varchar payer_class
         bigint destination_account_id FK
-        char destination_key "SHA-256 (64)"
+        char destination_key
         varchar destination_masked
         varchar device_id
-        varchar channel "internet | celular | computador | tablet | relogio"
+        varchar channel
         double latitude
         double longitude
         integer geo_accuracy_m
         jsonb metadata
         timestamptz second_factor_at
-        varchar challenge_type "CUSTOMER_TOKEN_2FA | TRUSTED_CONTACT_APPROVAL"
+        varchar challenge_type
         varchar friction_script_key
-        varchar friction_answer "YES | NO | SKIP"
+        varchar friction_answer
+        bigint second_factor_contact_id FK
         uuid qi_account_key
         uuid qi_pix_transfer_key UK
-        varchar qi_transfer_status "pending_2fa_approval | sent | pending | rejected"
+        varchar qi_transfer_status
         timestamptz challenge_expires_at
+        timestamptz created_at
     }
 
     pix_rule_result {
@@ -558,16 +574,17 @@ erDiagram
         char source_hash PK
         timestamptz first_seen
         timestamptz last_seen
-        integer tx_count "CHECK >= 1"
+        integer tx_count
     }
 
     destination_flag {
         bigserial id PK
         char destination_key
-        varchar status "OBSERVACAO | QUARENTENA | MARCADA"
+        varchar status
         varchar reason
         timestamptz starts_at
-        timestamptz expires_at "CHECK > starts_at"
+        timestamptz expires_at
+        timestamptz created_at
     }
 
     destination_reputation {
@@ -576,22 +593,24 @@ erDiagram
         integer rejected_count
         integer two_factor_count
         integer payers_24h
-        numeric forwarded_ratio_1h "0.0000 a 1.0000"
+        numeric forwarded_ratio_1h
         timestamptz updated_at
     }
 
     bet_destination {
-        char cnpj PK "14 digitos"
+        char cnpj PK
         varchar razao_social
         varchar source
         boolean active
+        timestamptz created_at
     }
 
     of_payer_profile {
-        bigint account_id PK_FK
+        bigint account_id PK
         bigint other_income_cents
         bigint other_balance_cents
         bigint other_balance_prev_cents
+        timestamptz prev_loaded_at
         timestamptz loaded_at
         timestamptz consent_expires_at
     }
