@@ -62,6 +62,13 @@ def create_app() -> FastAPI:
     application.add_api_route("/pix/transaction", pix.on_post_transaction, methods=["POST"])
     application.add_api_route("/pix/transaction/{id}", pix.on_get_transaction, methods=["GET"])
     application.add_api_route("/pix/feedback", pix.on_post_feedback, methods=["POST"])
+    application.add_api_route("/pix/transaction/{id}/second_factor", pix.on_post_second_factor, methods=["POST"])
+    application.add_api_route(
+        "/pix/transaction/{id}/second_factor/token", pix.on_put_second_factor_token, methods=["PUT"]
+    )
+    application.add_api_route(
+        "/pix/transaction/{id}/second_factor/token", pix.on_patch_second_factor_token, methods=["PATCH"]
+    )
 
     register_error_handlers(application)
     return application

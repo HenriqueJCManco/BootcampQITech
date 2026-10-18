@@ -18,7 +18,8 @@ class RestConnector(metaclass=ABCMeta):
         if headers is None:
             headers = {}
 
-        headers["INTERNAL-TOKEN"] = self.internal_token
+        if self.internal_token:
+            headers["INTERNAL-TOKEN"] = self.internal_token
 
         url = f"{self.base_url}{endpoint}"
 

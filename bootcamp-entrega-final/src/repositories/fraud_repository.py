@@ -456,6 +456,33 @@ class FraudRepository:
         analysis.second_factor_at = at
         analysis.second_factor_contact_id = contact_id
 
+    def open_qi_challenge(
+        self,
+        analysis: PixAnalysisModel,
+        account_key: str,
+        request_control_key: str,
+        transfer,
+        contact_type: str,
+        expires_at: datetime,
+    ) -> None:
+        analysis.qi_account_key = account_key
+        analysis.qi_request_control_key = request_control_key
+        analysis.qi_pix_transfer_key = transfer.pix_transfer_key
+        analysis.qi_end_to_end_id = transfer.end_to_end_id
+        analysis.qi_transfer_status = transfer.status
+        analysis.qi_contact_type = contact_type
+        analysis.challenge_expires_at = expires_at
+
+    def update_qi_status(self, analysis: PixAnalysisModel, status: str, expires_at: datetime | None = None) -> None:
+        analysis.qi_transfer_status = status
+        if expires_at is not None:
+            analysis.challenge_expires_at = expires_at
+
+    def close_qi_challenge(self, analysis: PixAnalysisModel) -> None:
+        analysis.qi_pix_transfer_key = None
+        analysis.qi_transfer_status = None
+        analysis.challenge_expires_at = None
+
     def record_friction_answer(self, analysis: PixAnalysisModel, answer: str, at: datetime) -> None:
         analysis.friction_answer = answer
         analysis.friction_answered_at = at

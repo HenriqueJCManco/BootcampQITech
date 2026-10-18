@@ -8,19 +8,16 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from controllers.base_controller import BaseController
+from controllers.second_factor import SecondFactorService
 from domain import (
-    APPROVED,
-    REJECTED,
     TWO_FACTOR_REQUIRED,
     EngineConfig,
     EvaluationContext,
     Geolocation,
     Interaction,
     PixRequest,
-    apply_second_factor,
     evaluate,
 )
-from domain.engine import BLOCKED_FOR_SAFETY
 from domain.identity import destination_key, document_hash, mask_document, only_digits
 from dtos import PixAnalysisDTO
 from errors import (
@@ -42,7 +39,6 @@ MAX_FUTURE = timedelta(minutes=5)
 LOCK_TIMEOUT = "2s"
 OWN_PARTICIPANT = "BANCO60"
 OWN_BRANCH = "0001"
-ESCALATION_RULE = "ESCALATION"
 
 
 class AvaliarPixController(BaseController):
@@ -132,38 +128,10 @@ class AvaliarPixController(BaseController):
         if analysis.second_factor_at is not None:
             return PixAnalysisDTO.to_dict(analysis)
 
-        config_row = self.repository.get_config(analysis.engine_version)
-        config = EngineConfig(version=config_row.version, params=config_row.params)
-        has_consented_contact = analysis.source_account_id is not None and self.repository.has_consented_contact(
-            analysis.source_account_id
-        )
+        second_factor = SecondFactorService(self.repository)
         answer = payload.get("friction_answer")
-        status, challenge_type = apply_second_factor(
-            analysis.status, analysis.friction_script_key, answer, has_consented_contact, config
-        )
-
-        now = datetime.now(timezone.utc)
-        if answer is not None:
-            self.repository.record_friction_answer(analysis, answer, now)
-        if status == APPROVED:
-            self.repository.mark_second_factor(analysis, now)
-        else:
-            self.repository.add_rule_result(
-                analysis,
-                ESCALATION_RULE,
-                {"from": analysis.status, "to": status, "friction_answer": answer, "challenge_type": challenge_type},
-            )
-
-        metadata = dict(analysis.metadata_)
-        if status == APPROVED:
-            metadata["customer_message_key"] = None
-        elif status == REJECTED:
-            metadata["customer_message_key"] = BLOCKED_FOR_SAFETY
-        if challenge_type is not None:
-            analysis.challenge_type = challenge_type
-            metadata["challenge_type"] = challenge_type
-        analysis.status = status
-        analysis.metadata_ = metadata
+        status, challenge_type = second_factor.outcome(analysis, answer)
+        second_factor.record(analysis, status, challenge_type, answer, datetime.now(timezone.utc))
         self.session.commit()
         return PixAnalysisDTO.to_dict(analysis)
 

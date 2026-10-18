@@ -130,3 +130,98 @@ class PixLockTimeout(QIException):
             "The payer is busy. Retry the request with the same Pix id.",
             "O pagador está ocupado. Tente novamente com o mesmo id do Pix.",
         )
+
+
+class PixSecondFactorNotPending(QIException):
+    code = "AFP000010"
+
+    def __init__(self, description: str = "This Pix is not waiting for a second factor.") -> None:
+        super().__init__(
+            "Second factor not applicable",
+            self.code,
+            409,
+            description,
+            "Este Pix não está aguardando segundo fator.",
+        )
+
+
+class PixTokenIncorrect(QIException):
+    code = "AFP000011"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Incorrect token",
+            self.code,
+            422,
+            "The token does not match the one sent to the approver.",
+            "O código não confere com o enviado ao aprovador.",
+            [{"field": "token", "rule": "match", "message": "Token is incorrect."}],
+        )
+
+
+class PixTokenExpired(QIException):
+    code = "AFP000012"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Token expired",
+            self.code,
+            422,
+            "The token has expired. Request a new token.",
+            "O código expirou. Peça um novo código.",
+            [{"field": "token", "rule": "expired", "message": "Token is expired."}],
+        )
+
+
+class PixTokenAttemptsExceeded(QIException):
+    code = "AFP000013"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Token attempts exceeded",
+            self.code,
+            422,
+            "The maximum number of token attempts was reached and the Pix was rejected.",
+            "O número máximo de tentativas foi atingido e o Pix foi recusado.",
+        )
+
+
+class PixSecondFactorUnavailable(QIException):
+    code = "AFP000014"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Second factor provider unavailable",
+            self.code,
+            503,
+            "The second factor provider did not answer. Retry the request.",
+            "O provedor do segundo fator não respondeu. Tente novamente.",
+        )
+
+
+class PixTransferRefused(QIException):
+    code = "AFP000015"
+
+    def __init__(self, provider_code: str) -> None:
+        super().__init__(
+            "Pix transfer refused",
+            self.code,
+            422,
+            "The Pix transfer was refused by the payment provider.",
+            "A transferência Pix foi recusada pelo provedor de pagamentos.",
+            [{"field": "provider", "rule": provider_code, "message": "Refused by the payment provider."}],
+        )
+
+
+class PixInvalidApprover(QIException):
+    code = "AFP000016"
+
+    def __init__(self, description: str) -> None:
+        super().__init__(
+            "Invalid approver",
+            self.code,
+            422,
+            description,
+            "O aprovador informado não é válido para este desafio.",
+            [{"field": "approver.document_number", "rule": "approver", "message": description}],
+        )

@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "qi_account_key": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "approver": {
+      "type": "object",
+      "properties": {
+        "document_number": { "type": "string", "pattern": "^[0-9.-]{11,14}$" },
+        "contact_type": { "type": "string", "enum": ["sms", "email"] }
+      },
+      "required": ["document_number", "contact_type"],
+      "additionalProperties": false
+    },
+    "transfer": {
+      "type": "object",
+      "properties": {
+        "pix_transfer_type": { "type": "string", "enum": ["key", "manual", "static_qr_code", "dynamic_qr_code"] },
+        "target_pix_key": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "end_to_end_id": { "type": "string", "minLength": 32, "maxLength": 32 },
+        "receiver_conciliation_id": { "type": "string", "maxLength": 35 },
+        "pix_message": { "type": "string", "maxLength": 140 },
+        "target_account": {
+          "type": "object",
+          "properties": {
+            "account_branch": { "type": "string", "maxLength": 4 },
+            "account_digit": { "type": "string", "maxLength": 1 },
+            "account_number": { "type": "string", "maxLength": 20 },
+            "owner_document_number": { "type": "string", "pattern": "^[0-9]{11}$|^[0-9]{14}$" },
+            "owner_name": { "type": "string", "maxLength": 255 },
+            "account_type": { "type": "string", "enum": ["checking_account", "savings_account", "payment_account"] },
+            "ispb": { "type": "string", "pattern": "^[0-9]{8}$" }
+          },
+          "required": ["account_branch", "account_number", "owner_document_number", "account_type", "ispb"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["pix_transfer_type"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["qi_account_key", "approver", "transfer"],
+  "additionalProperties": false
+}
